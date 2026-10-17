@@ -46,4 +46,6 @@ Prompt usado (ferramenta integrada, fundo transparente):
 
 A arte é uma reconstrução; a Bíblia não descreve a aparência física de Gideão nesses detalhes. O prompt acima resume a especificação de produção; a geração retornada foi inspecionada e preservada com seu canal de transparência.
 
-`public/assets/gideao-walk.png` acrescenta dezesseis quadros originais em quatro direções, gerados a partir da mesma aparência para animação dentro do mundo 3D. O arquivo `src/content/sprites.ts` fornece os recortes de cada quadro, pois o espaçamento devolvido pela ferramenta não é matematicamente uniforme. `public/assets/PROVENANCE.md` registra os dois prompts integrais e a origem das imagens.
+`public/assets/gideao-walk.png` acrescenta dezesseis quadros originais em quatro direções, gerados a partir da mesma aparência para animação dentro do mundo 3D. O arquivo `src/content/sprites.ts` fornece os recortes de cada quadro, pois o espaçamento devolvido pela ferramenta não é matematicamente uniforme.
+
+`public/assets/people-walk.png` contém outros dezesseis quadros para Purá, uma moradora ficcional, Joás e um guarda midianita sem identidade bíblica inventada. As imagens não são retratos historicamente comprovados. Os recortes ficam em `src/content/peopleSprites.ts`. `public/assets/limestone-wall.png` é uma textura original aplicada a superfícies tridimensionais; não substitui o cenário por uma imagem plana. `public/assets/PROVENANCE.md` registra todos os prompts integrais e a origem das imagens.

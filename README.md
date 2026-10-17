@@ -135,11 +135,12 @@ src/
   content/
     campaign.ts    atos, objetivos, falas, referências e adaptações
     sprites.ts     metadados do atlas original de Gideão
+    peopleSprites.ts recortes dos personagens de apoio animados
   ui/
     App.tsx        menus, HUD, controles e ligação com os sistemas
     styles.css     apresentação e adaptação às telas
 public/
-  assets/          retrato, atlas de animação e procedência
+  assets/          retrato, atlas de animação, textura de pedra e procedência
   manifest.webmanifest
   sw.js
 tests/             testes de sistemas, persistência e navegador

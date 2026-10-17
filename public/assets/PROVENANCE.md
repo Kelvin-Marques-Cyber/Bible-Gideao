@@ -1,5 +1,31 @@
 # Original art provenance
 
+## people-walk.png
+
+- Built-in ImageGen generation using the original `gideao-walk.png` as style reference, with `transparent_background: true`.
+- PNG: 1254 × 1254, RGBA, with transparent and opaque pixels verified.
+- Rows represent Purá, a fictional village woman, Joás and an unnamed Midianite guard. Each row contains four walking poses facing front in three-quarter view. Runtime mirrors supply opposite facing.
+- Original source rectangles in `src/content/peopleSprites.ts` were measured from alpha bounds with two-pixel padding. No downloaded commercial game art was used.
+- Costume and appearance are artistic reconstruction. The village woman and generic guard do not receive invented biblical identities.
+
+Exact generation prompt:
+
+```text
+Use case: historical-scene. Asset type: original living NPC WALK SPRITE SHEET for an HD-2D biblical RPG, matching the original pixel-art style, visual richness, scale, ochre/teal palette and serious four-heads-tall proportions of the attached Gideon sprite atlas. This reference is only for art style and scale, not for copied faces. Create exactly SIXTEEN isolated full-body people on a genuinely transparent square image, arranged in exactly FOUR COLUMNS and FOUR ROWS, uniformly spaced, equal-size cells, identical character scale, feet at matching baseline in each row, NO clipping or overlap. Each ROW is a different ancient Levantine character, each COLUMN is a consecutive WALK frame: standing neutral; left foot forward with arms counter-swinging; passing pose; right foot forward. All face the viewer in slight three-quarter angle, grounded, natural, warm olive skin. ROW1 PURAH scout: young adult man, short dark curly hair, neatly trimmed beard, dark teal hooded mantle worn down, muted sage-green linen tunic, leather belt, small satchel, sandals, short sheathed blade, alert thoughtful face. ROW2 WOMAN VILLAGER: adult woman, muted rust-orange long linen dress, cream headwrap, olive skin, small woven belt pouch, sandals, kind hardworking face. ROW3 ELDER JOASH: elderly man with gray curly hair and full gray beard, cream and sand long robe, muted brown shoulder shawl, rope belt, sandals, dignified weathered face, NO staff so arms can animate freely. ROW4 MIDIANITE GUARD: adult male soldier, burgundy linen tunic, layered brown leather armor, plain bronze open-face helmet, dark short beard, sandals, holding a simple vertical wood spear in right hand with small bronze tip, no shield, serious face, not a monster. HANDCRAFTED CRISP PIXEL ART: deliberate visible square pixel clusters, intricate fabric fold highlights, leather seams, subtle bronze glints, no smooth vector shapes, no realism, no anti-aliased illustration. Designed for characters to remain rich and readable when shown small in a real 3D world. Each figure roughly60%cell width and85%cell height with transparent margins. NO ground, shadow, backdrop, floor, labels, grid lines, letters, text, icons, weapons floating separately, UI, watermark or additional figures.
+```
+
+## limestone-wall.png
+
+- Built-in ImageGen generation with an opaque background, for surface material on 3D meshes.
+- PNG: 1254 × 1254, RGB. The image depicts a continuous masonry surface, not a static environment or gameplay replacement.
+- Intended for tiling. Exact seamlessness is not asserted; mirrored wrapping can soften repetition boundaries.
+
+Exact generation prompt:
+
+```text
+Use case: historical-scene. Asset type: seamless tileable material texture for actual 3D mesh walls in an original high-quality HD-2D biblical RPG. Create ONE square full-bleed orthographic texture of ancient Levantine rough limestone masonry and pale earthen mortar. The texture covers the entire image edge to edge, with no outer wall outline, and must seamlessly tile on all four edges. Eight to ten irregular staggered stone courses, hand-cut warm cream limestone blocks of varied medium sizes, natural chipped edges, subtle hairline cracks, tiny ochre grit and worn clay mortar between stones, sparse muted olive aging deep in crevices. Physically readable stone relief, detailed but restrained. Style: exquisite richly hand-painted pixel-art material, deliberate crisp 2-to-4 pixel clusters at final image size, sophisticated desaturated honey, cream, taupe palette, gentle texture microvariation, elegant classic Japanese HD-2D RPG art direction entirely original. Perfect straight-on front surface view, flat neutral diffuse illumination appropriate as albedo texture, no perspective, no directional cast shadows, no AO that creates a broad gradient, no highlights baked from a sun, no vignette. The tiles must continue naturally beyond every edge. Do NOT depict a building, sky, landscape, window, door, character, floor, scene, frame or interface. No text, symbols, writing, logos or watermarks. A single continuous limestone wall texture only, square1024×1024.
+```
+
 ## gideao.png
 
 - Generated for Bible — Gideão on 2026-10-17 using the built-in ImageGen tool, with `transparent_background: true`.
