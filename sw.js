@@ -1,8 +1,8 @@
 /* The production build injects a content hash and the complete asset list. */
-const CACHE = 'gideao-v1.0.0';
+const CACHE = "gideao-cc7ce2893582";
 const BASE = new URL('./', self.location.href).pathname;
 self.addEventListener('install', event => {
-  event.waitUntil(caches.open(CACHE).then(cache => cache.addAll([BASE, BASE+'index.html', BASE+'manifest.webmanifest', BASE+'icon.svg', BASE+'icon-192.png', BASE+'icon-512.png', BASE+'assets/gideao.png'])));
+  event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(["./","./assets/PROVENANCE.md","./assets/gideao-walk.png","./assets/gideao.png","./assets/index-DVEkkSGq.js","./assets/index-opewQOLt.css","./assets/limestone-wall.png","./assets/people-walk.png","./fonts/Cinzel-OFL.txt","./fonts/DMSans-OFL.txt","./fonts/cinzel.ttf","./fonts/dm-sans.ttf","./icon-192.png","./icon-512.png","./icon.svg","./index.html","./manifest.webmanifest"])));
   self.skipWaiting();
 });
 self.addEventListener('activate', event => {
