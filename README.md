@@ -103,14 +103,26 @@ Em Linux de integração contínua, a instalação pode precisar de `bunx playwr
 
 O jogo é estático: publique o conteúdo de `dist/` em um servidor HTTPS. A configuração `base: './'` permite hospedagem em subdiretório, inclusive GitHub Pages. Preserve a estrutura de arquivos e sirva JavaScript, manifesto, imagens e Service Worker com os tipos adequados.
 
-### GitHub Pages
+### GitHub Pages sem Actions (compilação local)
 
-1. Em **Settings → Pages → Build and deployment**, escolha **GitHub Actions** como origem da publicação.
-2. Envie os commits à branch `main`. O workflow **Deploy PWA to GitHub Pages** é acionado automaticamente a cada push em `main`, e também pode ser iniciado manualmente pelo menu **Actions**.
-3. Acompanhe separadamente **Validate RPG** (verificações) e **Deploy PWA to GitHub Pages** (teste, build, upload e publicação). A existência do workflow não significa que o site esteja publicado.
-4. Após uma execução de deploy com resultado `success`, abra a URL exibida no job e teste recursos, instalação e funcionamento offline.
+Este projeto **não** pode ser publicado diretamente a partir dos fontes da branch `main`: o `index.html` original importa `/src/main.tsx`, que precisa ser compilado pelo Vite. Isso explica a tela branca quando o GitHub Pages publica os arquivos-fonte com Jekyll. **Não escolha `main/(root)` como origem do site.**
 
-**Pendência identificada em 17/10/2026:** GitHub Actions falhou antes de executar qualquer etapa, sem runner atribuído ou logs de execução. O deploy automático foi acionado, mas falhou inclusive após uma tentativa de reexecução. Isso impede confirmar a publicação e o build na infraestrutura do GitHub. Verifique as mensagens do run e as configurações/permissões de Actions e de Pages; se até jobs mínimos forem rejeitados antes de obter runner, a restrição pode estar na conta ou no serviço GitHub Actions. Não confunda essa falha de provisionamento com uma falha de código. Consulte [docs/VALIDACAO.md](docs/VALIDACAO.md).
+A publicação alternativa funciona sem GitHub Actions, sem workflows de CI e sem serviços externos de build. O comando abaixo testa, compila e envia **somente o conteúdo de `dist/`** à branch `gh-pages`, preservando toda a origem e histórico de `main`:
+
+```bash
+git clone https://github.com/Kelvin-Marques-Cyber/Bible-Gideao.git
+cd Bible-Gideao
+bun install --frozen-lockfile
+bun run deploy:pages
+```
+
+Pré-requisitos: Bun, Git e autenticação GitHub com permissão de push (Git Credential Manager, GitHub CLI ou chave SSH). Se já tiver o repositório no computador, use `git pull --ff-only origin main` antes de executar. O script cria ou atualiza `gh-pages` automaticamente por meio de um worktree temporário, **sem sobrescrever a `main`**. Inclui `.nojekyll`, ícones, manifesto, `sw.js` e recursos compilados. A cada nova versão, execute novamente `bun run deploy:pages`.
+
+**Uma única configuração necessária no GitHub**: abra [Settings → Pages](https://github.com/Kelvin-Marques-Cyber/Bible-Gideao/settings/pages), escolha **Build and deployment → Source: Deploy from a branch**, **Branch: gh-pages**, **Folder: /(root)**, e salve. Se a branch ainda não aparecer, execute o comando local acima para criá-la primeiro. O endereço publicado é [https://kelvin-marques-cyber.github.io/Bible-Gideao/](https://kelvin-marques-cyber.github.io/Bible-Gideao/).
+
+O GitHub ainda pode exibir um job interno chamado "pages build and deployment", mesmo com o método por branch. Isso é processamento próprio do GitHub Pages, **não exige executar nossos workflows personalizados**. A disponibilidade final depende das permissões/limitações ativas na conta; não declarar publicado até validar o URL real.
+
+O workflow personalizado `.github/workflows/deploy.yml` foi mantido **somente para execução manual futura**, caso Actions volte a estar disponível. O mesmo vale para a validação de CI. Não é necessário executar nenhum deles para publicar por `gh-pages`.
 
 ### Outro servidor
 

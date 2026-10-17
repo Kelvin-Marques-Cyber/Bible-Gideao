@@ -1,5 +1,6 @@
 name: Validate RPG
-on: [push, pull_request]
+on:
+  workflow_dispatch:
 jobs:
   checks:
     runs-on: ubuntu-latest
