@@ -3,6 +3,7 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { BokehPass } from 'three/addons/postprocessing/BokehPass.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { animalTexture, characterTexture, glowTexture, groundTexture, random, stoneTexture } from './art';
 import { canSeePlayer, moveWithCollisions, type Obstacle } from './movement';
@@ -76,6 +77,7 @@ export class World {
   private readonly resizeObserver: ResizeObserver;
   private composer: EffectComposer;
   private bloom: UnrealBloomPass;
+  private bokeh: BokehPass;
   private region: Region = 'ofra';
   private obstacles: Obstacle[] = [];
   private actors: Actor[] = [];
@@ -129,6 +131,7 @@ export class World {
   private readonly foliageMaterial = new THREE.MeshStandardMaterial({color:'#ffffff',vertexColors:true,roughness:1});
   private readonly textureCache = new Map<string, THREE.Texture[][]>();
   private readonly materialCache = new Map<string, THREE.MeshStandardMaterial>();
+  private readonly softwareMaterials = new Map<THREE.MeshStandardMaterial, THREE.MeshLambertMaterial>();
   private readonly onKeyDown = (event: KeyboardEvent) => { if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(event.key)) event.preventDefault(); this.keys.add(event.key.toLowerCase()); };
   private readonly onKeyUp = (event: KeyboardEvent) => this.keys.delete(event.key.toLowerCase());
   private readonly onBlur = () => { this.keys.clear(); this.input.set(0, 0); };
@@ -146,9 +149,13 @@ export class World {
     this.composer = new EffectComposer(this.renderer);
     this.composer.addPass(new RenderPass(this.scene, this.camera));
     this.bloom = new UnrealBloomPass(new THREE.Vector2(800, 600), .28, .5, .95);
-    this.composer.addPass(this.bloom); this.composer.addPass(new OutputPass());
+    this.composer.addPass(this.bloom);
+    this.bokeh=new BokehPass(this.scene,this.camera,{focus:this.cameraOffset.length(),aperture:.00012,maxblur:.003});
+    this.bokeh.materialBokeh.defines.PERSPECTIVE_CAMERA=0;
+    this.bokeh.enabled=false;this.composer.addPass(this.bokeh);this.composer.addPass(new OutputPass());
     const gl=this.renderer.getContext(),debug=gl.getExtension('WEBGL_debug_renderer_info');
     this.softwareRenderer=!!debug&&/swiftshader|llvmpipe|software|softpipe/i.test(gl.getParameter(debug.UNMASKED_RENDERER_WEBGL));
+    this.bokeh.enabled=!this.softwareRenderer&&window.innerWidth>=900;
     this.scene.add(this.root, this.player, this.battle);
     this.hero = this.createActor('gideao', 'gideao', 0, 6, 0); this.player.add(this.hero.group);
     this.hero.group.position.set(0, 0, 0); this.player.position.set(0, 0, 6);
@@ -190,6 +197,8 @@ export class World {
     this.renderer.setSize(width, height, false); this.composer.setSize(width, height);
     const halfHeight = width / height > 1.7 ? 9.5 : width / height < 1 ? 12 : 10;
     this.camera.top = halfHeight; this.camera.bottom = -halfHeight; this.camera.left = -halfHeight * width / height; this.camera.right = halfHeight * width / height; this.camera.updateProjectionMatrix();
+    (this.bokeh.uniforms as Record<string,{value:number}>).aspect.value=width/height;
+    if(width<900)this.bokeh.enabled=false;
   }
 
   setRegion(region: Region) {
@@ -198,7 +207,7 @@ export class World {
     this.victory = false; this.detection = 0; this.battleActive = false; this.battle.visible = false; this.encounterCooldown = 0;
     this.buildLighting(region); this.buildTerrain();
     if (region === 'ofra') this.buildOfra(); else if (region === 'altar') this.buildAltar(); else if (region === 'harode') this.buildHarode(); else this.buildMidian();
-    this.buildParticles(); this.buildMarkers(); this.batchStaticMeshes();
+    this.buildParticles(); this.buildMarkers(); this.batchStaticMeshes();this.applySoftwareLighting();
     this.player.position.set(0, 0, region === 'midian' ? 9 : 6); this.player.visible = true;
     this.cameraTarget.copy(this.player.position); this.camera.position.copy(this.cameraTarget).add(this.cameraOffset); this.camera.lookAt(this.cameraTarget);
     this.notifyNearby(); this.callbacks.onPosition?.({ x: this.player.position.x, z: this.player.position.z });
@@ -492,6 +501,16 @@ export class World {
     }
   }
 
+  private applySoftwareLighting() {
+    if(!this.softwareRenderer)return;
+    this.scene.traverse(object=>{
+      if(!(object instanceof THREE.Mesh)||!(object.material instanceof THREE.MeshStandardMaterial))return;
+      const source=object.material;let material=this.softwareMaterials.get(source);
+      if(!material){material=new THREE.MeshLambertMaterial({color:source.color,map:source.map,transparent:source.transparent,opacity:source.opacity,alphaTest:source.alphaTest,side:source.side,vertexColors:source.vertexColors,depthWrite:source.depthWrite,flatShading:source.flatShading,emissive:source.emissive,emissiveIntensity:source.emissiveIntensity});this.softwareMaterials.set(source,material);}
+      object.material=material;
+    });
+  }
+
   private notifyNearby() {
     if(this.battleActive){if(this.nearby.length){this.nearby=[];this.callbacks.onNearby?.([]);}return;}
     const p=this.player.position;const points=REGION_INTERACTIONS[this.region].map(point=>({...point,distance:Math.hypot(p.x-point.x,p.z-point.z)})).filter(point=>point.distance<2.5).sort((a,b)=>a.distance-b.distance);
@@ -502,12 +521,12 @@ export class World {
   setPaused(paused: boolean) { this.paused=paused;if(paused){this.input.set(0,0);this.keys.clear();} }
   setPosition(x: number,z: number) { this.player.position.set(THREE.MathUtils.clamp(x,-17.5,17.5),0,THREE.MathUtils.clamp(z,-17.5,17.5));this.cameraTarget.copy(this.player.position);this.notifyNearby();this.callbacks.onPosition?.({x:this.player.position.x,z:this.player.position.z}); }
   getPosition() { return {x:this.player.position.x,z:this.player.position.z}; }
-  getDebugInfo() { return {region:this.region,position:this.getPosition(),fps:this.fps,nearby:this.nearby.map(p=>p.id),obstacles:this.obstacles.map(o=>({...o})),quality:this.quality,battle:this.battleActive}; }
+  getDebugInfo() { return {region:this.region,position:this.getPosition(),fps:this.fps,nearby:this.nearby.map(p=>p.id),obstacles:this.obstacles.map(o=>({...o})),quality:this.quality,battle:this.battleActive,drawCalls:this.renderer.info.render.calls,triangles:this.renderer.info.render.triangles,software:this.softwareRenderer,pixelRatio:this.renderer.getPixelRatio(),cinematic:this.cinematic?{...this.cinematic}:null}; }
   interact() { if(this.nearby[0])this.callbacks.onInteract?.(this.nearby[0].id); }
   setObjective(id: string) { this.objective=id; }
 
   setQuality(quality: 'high'|'low', automatic=false) {
-    this.quality=quality;if(!automatic)this.qualityPinned=true;this.renderer.setPixelRatio(quality==='high'?Math.min(window.devicePixelRatio||1,1.35):this.softwareRenderer?.6:.85);this.renderer.shadowMap.enabled=!this.softwareRenderer;this.sun.shadow.mapSize.set(quality==='high'?1024:512,quality==='high'?1024:512);this.sun.shadow.map?.dispose();this.sun.shadow.map=null;this.bloom.enabled=quality==='high';this.resize();
+    this.quality=quality;if(!automatic)this.qualityPinned=true;this.renderer.setPixelRatio(quality==='high'?Math.min(window.devicePixelRatio||1,1.35):this.softwareRenderer?.4:.85);this.renderer.shadowMap.enabled=!this.softwareRenderer;this.sun.shadow.mapSize.set(quality==='high'?1024:512,quality==='high'?1024:512);this.sun.shadow.map?.dispose();this.sun.shadow.map=null;this.bloom.enabled=quality==='high';this.bokeh.enabled=quality==='high'&&!this.softwareRenderer&&window.innerWidth>=900;this.resize();
   }
 
   setBattle(state: boolean | BattleVisual | null) {
@@ -519,7 +538,7 @@ export class World {
     this.disposeGroup(this.battle);this.battle.clear();this.battleUnits.clear();
     const center=this.player.position.clone();let allies=0,enemies=0;
     for(const unit of units){const ally=unit.side==='ally',index=ally?allies++:enemies++,isGideon=unit.id==='gideao'||unit.id==='gideon';const actor=this.createActor(`battle-${unit.id}`,ally?(isGideon?'gideao':unit.id==='pura'?'pura':'villager'):'guard',0,0,0);this.actors=this.actors.filter(a=>a!==actor);this.root.remove(actor.group);this.battle.add(actor.group);actor.group.position.set(center.x+(ally?-3.0:2.8)+(index%2)*.45,0,center.z+(index-1)*1.8);actor.body.quaternion.copy(this.camera.quaternion);if(isGideon&&this.hero.body.userData.artwork){actor.body.material.map=this.hero.body.userData.artwork;actor.body.scale.set(1.2,1.2,1);actor.body.position.y=.98;}this.battleUnits.set(unit.id,actor.group);actor.group.userData.body=actor.body;actor.group.visible=unit.hp>0;}
-    this.cameraTarget.copy(center);this.callbacks.onNearby?.([]);this.nearby=[];
+    this.cameraTarget.copy(center);this.callbacks.onNearby?.([]);this.nearby=[];this.applySoftwareLighting();
   }
 
   animateAttack(actorId: string,targetId: string) {
@@ -582,6 +601,7 @@ export class World {
       if(t>=1)this.cinematic=null;
     }
     this.cameraTarget.lerp(target,1-Math.exp(-dt*(this.cinematic?2:5)));this.camera.position.copy(this.cameraTarget).add(offset);this.camera.lookAt(this.cameraTarget.clone().add(new THREE.Vector3(0,.45,0)));this.camera.zoom=THREE.MathUtils.lerp(this.camera.zoom,zoom,1-Math.exp(-dt*3));this.camera.updateProjectionMatrix();
+    (this.bokeh.uniforms as Record<string,{value:number}>).focus.value=this.camera.position.distanceTo(this.cameraTarget);
   }
 
   private updateEffects(dt: number) {
@@ -598,13 +618,13 @@ export class World {
   }
 
   private tick = (now: number) => {
-    if(this.disposed)return;const actualDt=this.lastTime?(now-this.lastTime)/1000:1/60,dt=Math.min(.05,actualDt);this.lastTime=now;this.time+=dt;this.frame++;
+    if(this.disposed)return;const actualDt=this.lastTime?(now-this.lastTime)/1000:1/60,dt=Math.min(.25,actualDt);this.lastTime=now;this.time+=dt;this.frame++;
     if(!this.paused&&!this.battleActive&&!this.cinematic)this.updateMovement(dt);else this.animateActor(this.hero,dt,false);
-    this.updateActors(this.paused?0:dt);this.updateCamera(dt);this.updateEffects(dt);
+    this.updateActors(this.paused&&!this.cinematic?0:dt);this.updateCamera(actualDt);this.updateEffects(dt);
     if(this.frame%10===0){this.notifyNearby();if(!this.paused)this.callbacks.onPosition?.(this.getPosition());}
     if(this.quality==='high')this.composer.render();else this.renderer.render(this.scene,this.camera);
     this.sampleFrames++;this.sampleTime+=actualDt;
-    if(this.sampleTime>2){this.fps=Math.round(this.sampleFrames/this.sampleTime);this.callbacks.onStats?.({fps:this.fps,quality:this.quality,drawCalls:this.renderer.info.render.calls,triangles:this.renderer.info.render.triangles});if(this.fps<27)this.slowSamples++;else this.slowSamples=Math.max(0,this.slowSamples-1);if(this.slowSamples>=3&&!this.qualityPinned&&this.quality==='high')this.setQuality('low',true);this.sampleFrames=0;this.sampleTime=0;}
+    if(this.sampleTime>2){this.fps=Math.round(this.sampleFrames/this.sampleTime);this.callbacks.onStats?.({fps:this.fps,quality:this.quality,drawCalls:this.renderer.info.render.calls,triangles:this.renderer.info.render.triangles});if(this.fps<40)this.bokeh.enabled=false;if(this.fps<27)this.slowSamples++;else this.slowSamples=Math.max(0,this.slowSamples-1);if(this.slowSamples>=3&&!this.qualityPinned&&this.quality==='high')this.setQuality('low',true);this.sampleFrames=0;this.sampleTime=0;}
     this.raf=requestAnimationFrame(this.tick);
   };
 

@@ -5,6 +5,9 @@ export class GameAudio {
   private muted = false;
   private mode = 'ofra';
   private beat = 0;
+  private listener = {x:0,z:0};
+  setListener(x:number,z:number){this.listener={x,z};}
+  private spatialTone(x:number,z:number,frequency:number){const distance=Math.hypot(x-this.listener.x,z-this.listener.z);this.tone(frequency,.28,Math.max(.003,.045/(1+distance*.45)),'triangle',Math.max(-1,Math.min(1,(x-this.listener.x)/12)));}
   async start() {
     this.ctx ??= new AudioContext();
     await this.ctx.resume();
@@ -34,6 +37,8 @@ export class GameAudio {
     if (this.beat % 8 === 0) this.tone(73.42, 4.5, .018);
     if (battle || this.beat % 4 === 0) { this.tone(65, .19, battle ? .065 : .028); this.noise(.1, .012, 800); }
     if (this.beat % 7 === 0) this.noise(1.6, .01, 480);
+    if(this.mode==='ofra'&&this.beat%19===7){this.spatialTone(-13,2,245);setTimeout(()=>this.spatialTone(-13,2,230),180);}
+    if(this.mode==='midian'&&this.beat%13===4)this.noise(.22,.012,700);
     this.beat++;
   }
   play(kind: 'step'|'click'|'attack'|'guard'|'victory'|'horn'|'jar'|'level'|'danger') {

@@ -20,6 +20,7 @@ export default function App() {
  const [detection,setDetection]=useState(0);
  const [fps,setFps]=useState(0),[position,setPosition]=useState({x:0,z:7}),[selectedHero,setSelectedHero]=useState('gideon'),[selectedTarget,setSelectedTarget]=useState(''),[selectedAlly,setSelectedAlly]=useState(''),[selectedSupply,setSelectedSupply]=useState('bread'),[busy,setBusy]=useState(false),[mapExpanded,setMapExpanded]=useState(false);
  const host=useRef<HTMLDivElement>(null),world=useRef<World|null>(null),audio=useRef(new GameAudio()),positionRef=useRef({x:0,z:7}),interactRef=useRef<(id?:string)=>void>(()=>{}),toastTimer=useRef<ReturnType<typeof setTimeout>|null>(null),installPrompt=useRef<any>(null);
+ const stepDistance=useRef({x:0,z:7});
  const dialogueRef=useRef<Conversation|null>(null);dialogueRef.current=dialogue;
  const [installable,setInstallable]=useState(false),[fatal,setFatal]=useState('');
  const step=campaign[Math.min(game.stage,campaign.length-1)];
@@ -32,7 +33,7 @@ export default function App() {
  useEffect(()=>{let alive=true;loadGame().then(saved=>{if(!alive)return;if(saved){commit(saved);positionRef.current=saved.position;setPosition(saved.position);setHasSave(true);}setLoaded(true);}).catch(()=>setLoaded(true));return()=>{alive=false;};},[commit]);
  useEffect(()=>{
   if(!host.current)return;
-  try{const engine=new World(host.current,{onNearby:setNearby,onPosition:p=>{positionRef.current=p;},onInteract:id=>interactRef.current(id),onEncounter:id=>interactRef.current(id),onDetection:setDetection,onStats:stats=>{setFps(Math.round(stats.fps));setQuality(stats.quality);}});world.current=engine;return()=>{engine.dispose();world.current=null;};}catch(e){setFatal(e instanceof Error?e.message:'WebGL indisponível');}
+  try{const engine=new World(host.current,{onNearby:setNearby,onPosition:p=>{positionRef.current=p;audio.current.setListener(p.x,p.z);if(Math.hypot(p.x-stepDistance.current.x,p.z-stepDistance.current.z)>.8){if(gameRef.current.flags.intro)audio.current.play('step');stepDistance.current=p;}},onInteract:id=>interactRef.current(id),onEncounter:id=>interactRef.current(id),onDetection:setDetection,onStats:stats=>{setFps(Math.round(stats.fps));setQuality(stats.quality);}});world.current=engine;return()=>{engine.dispose();world.current=null;};}catch(e){setFatal(e instanceof Error?e.message:'WebGL indisponível');}
  },[]);
  useEffect(()=>{world.current?.setRegion(game.region);world.current?.setPosition(game.position.x,game.position.z);audio.current.setMode(game.region);},[game.region,loaded]);
  useEffect(()=>{world.current?.setPaused(!started||!!tab||!!dialogue||!!game.battle);},[started,tab,dialogue,game.battle]);
