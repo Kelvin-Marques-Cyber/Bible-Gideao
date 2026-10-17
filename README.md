@@ -105,12 +105,12 @@ O jogo é estático: publique o conteúdo de `dist/` em um servidor HTTPS. A con
 
 ### GitHub Pages
 
-1. Envie os commits para `main` no repositório de destino.
-2. Nas configurações do repositório, em **Pages**, selecione **GitHub Actions** como origem.
-3. Em **Actions**, execute manualmente **Deploy PWA to GitHub Pages**.
-4. Aguarde as etapas de teste, build, envio do artefato e deploy. Use o endereço informado pela execução concluída.
+1. Em **Settings → Pages → Build and deployment**, escolha **GitHub Actions** como origem da publicação.
+2. Envie os commits à branch `main`. O workflow **Deploy PWA to GitHub Pages** é acionado automaticamente a cada push em `main`, e também pode ser iniciado manualmente pelo menu **Actions**.
+3. Acompanhe separadamente **Validate RPG** (verificações) e **Deploy PWA to GitHub Pages** (teste, build, upload e publicação). A existência do workflow não significa que o site esteja publicado.
+4. Após uma execução de deploy com resultado `success`, abra a URL exibida no job e teste recursos, instalação e funcionamento offline.
 
-O workflow de publicação está em `.github/workflows/deploy.yml`. Ele é manual; um push em `main` não equivale a uma publicação no Pages. O workflow de validação fica em `.github/workflows/ci.yml`. Regras do repositório, permissões de Pages e proteção do ambiente podem exigir ajustes pelo proprietário.
+**Pendência identificada em 17/10/2026:** GitHub Actions falhou antes de executar qualquer etapa, sem runner atribuído ou logs de execução. O deploy automático foi acionado, mas falhou inclusive após uma tentativa de reexecução. Isso impede confirmar a publicação e o build na infraestrutura do GitHub. Verifique as mensagens do run e as configurações/permissões de Actions e de Pages; se até jobs mínimos forem rejeitados antes de obter runner, a restrição pode estar na conta ou no serviço GitHub Actions. Não confunda essa falha de provisionamento com uma falha de código. Consulte [docs/VALIDACAO.md](docs/VALIDACAO.md).
 
 ### Outro servidor
 

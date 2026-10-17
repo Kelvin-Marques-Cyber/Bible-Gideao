@@ -2,6 +2,15 @@
 
 Data: **17 de outubro de 2026**. Este arquivo registra evidências executadas durante a implementação. A existência de código, teste ou workflow não deve ser confundida com aprovação do comportamento.
 
+## Diagnóstico da publicação — 17/10/2026
+
+- Commit `e4a66b7b49c1bad85a53313e8edf2e78c2a25e75`: workflow de deploy passou a disparar automaticamente por push em `main`, mantendo a opção manual.
+- Validação no mesmo commit: [run 39071148217](https://github.com/Kelvin-Marques-Cyber/Bible-Gideao/actions/runs/39071148217) falhou antes da inicialização das etapas.
+- Publicação: [run 39071148250](https://github.com/Kelvin-Marques-Cyber/Bible-Gideao/actions/runs/39071148250) falhou sem passos iniciados, sem runner atribuído e sem logs disponíveis; a reexecução (tentativa 2) também falhou.
+- Na execução de validação anterior ([run 39070502531](https://github.com/Kelvin-Marques-Cyber/Bible-Gideao/actions/runs/39070502531)), a API relatou 0 ms de tempo faturável, nenhuma etapa e runner vazio. O download dos logs retornou `BlobNotFound`. A causa exata de a infraestrutura não designar um runner não está confirmada.
+- **Status:** commits publicados na `main`, automação de deploy configurada e acionada; **build em GitHub Actions, validação integrada e site público ainda não confirmados**. Não afirmar que o PWA foi publicado.
+- **Próximo passo do proprietário:** abrir os detalhes das execuções acima para ler eventuais avisos no topo do job; verificar **Settings → Actions → General**, **Settings → Pages** e eventuais restrições/bloqueios da conta no GitHub. Em caso de falha persistente antes de provisionar runner num repositório público, encaminhar os IDs dos runs ao GitHub Support. Após regularização, reexecutar o workflow de deploy e confirmar `success`.
+
 ## Resultados registrados
 
 | Verificação | Resultado observado | Evidência e limite |
