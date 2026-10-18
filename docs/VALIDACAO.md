@@ -18,7 +18,7 @@ Data: **17 de outubro de 2026**. Este arquivo registra evidências executadas du
 | Sistemas, movimento e persistência | **40 testes passaram**, em 3 arquivos | `bun run test`: 24 em `tests/systems.test.ts`, 9 em `tests/save.test.ts` e 7 em `tests/movement.test.ts`. Vitest 3.2.7; execução local concluída com código 0. |
 | Tipagem do conteúdo | **Passou** | Verificação TypeScript isolada de `src/content/campaign.ts` e `src/content/sprites.ts`, com modo estrito e sem emissão. Não substitui a tipagem da aplicação completa. |
 | Transparência do retrato e atlas | **Confirmada** | PNGs RGBA; canal alfa com valores transparentes e opacos. Retrato 971 × 1619; atlas 1254 × 1254. |
-| Inspeção da arte | **Realizada** | Um retrato e 16 quadros em quatro direções. Recortes explícitos compensam a grade gerada sem espaçamento matematicamente uniforme. Renderização observada em screenshots reais durante os dois testes; evidências em `docs/screenshots/`. |
+| Inspeção da arte | **Realizada** | Um retrato, atlas de Gideão com 16 quadros em quatro direções, atlas de quatro tipos de NPCs com 16 quadros e textura de pedra original. Recortes explícitos compensam a grade gerada sem espaçamento matematicamente uniforme. Renderização observada em screenshots reais durante os dois testes; evidências em `docs/screenshots/`. |
 | Conferência do roteiro | **Realizada** | Juízes 6–8 consultados em ARC; ordem dos eventos, dez servos, Joás, números do exército, Purá, sonho, ação das tochas e advertência do éfode conferidos. Ver `BIBLIA.md`. |
 | Tipagem completa | **Passou** | `bun run typecheck`, código 0, após integração dos sistemas e dos novos recursos visuais. |
 | Build de produção | **Passou** | `bun run build`, código 0. Vite 7.3.7; cache de produção inclui fontes, ícones e todos os recursos visuais. |
@@ -28,9 +28,10 @@ Data: **17 de outubro de 2026**. Este arquivo registra evidências executadas du
 | Toque e interface horizontal | **Passou em emulação** | Viewport 844 × 390, eventos reais de toque emulados via CDP e deslocamento verificado; menus sem transbordamento horizontal. Não equivale a teste físico. |
 | Offline em produção | **Passou no Chromium** | Teste E2E: cache completo instalado, rede desativada, recarregamento e retomada do cenário 3D e posição preservada. |
 | Erros de console e execução | **Nenhum nos dois cenários aprovados** | Listeners para `pageerror` e console de tipo `error`; listas vazias ao concluir as execuções. |
-| Publicação dos commits | **Confirmada até `46c9813`** | Fonte integrada aos três commits remotos de publicação, sem sobrescrita, e correção de retomada/offline enviada a `origin/main`. A versão servida informa seu commit em `version.json`. |
-| Origem de publicação no Pages | **Configurada e confirmada por API** | `build_type: workflow`, HTTPS habilitado. Nenhum deploy foi iniciado por essa configuração. |
-| Deploy público | **Pendente de execução/confirmação** | Publicação local compilada por `scripts/deploy-pages.mjs` disponível; Actions mantido manual conforme a alteração remota `17cf655`. Confirmar o endereço após a publicação de `gh-pages`. |
+| Publicação dos commits | **Confirmada até `e512ccd`** | Fonte integrada aos três commits remotos de publicação, sem sobrescrita, e validação final enviada a `origin/main`. `version.json` público confirma `e512ccd4bee38eec9e7ffb01b364418b4ce36bab`. |
+| Origem de publicação no Pages | **Confirmada por API** | `build_type: legacy`, origem `gh-pages:/`, HTTPS habilitado; publicação gerenciada do GitHub Pages. |
+| Deploy público | **Confirmado** | [Execução gerenciada 39091172017](https://github.com/Kelvin-Marques-Cyber/Bible-Gideao/actions/runs/39091172017) terminou com sucesso; artefato `8566087`, fonte `e512ccd`. HTML, JS/CSS, Service Worker e `version.json` públicos conferidos por HTTPS. |
+| Teste no endereço público | **Passou** | Chromium abriu a versão pública exata `e512ccd`, movimentou Gideão, salvou, desativou a rede e retomou a posição no subdiretório real do Pages. 18 recursos no cache; 0 erros de console. Captura `docs/screenshots/public-ofra.png`. |
 
 ## O que os 40 testes verificam
 
