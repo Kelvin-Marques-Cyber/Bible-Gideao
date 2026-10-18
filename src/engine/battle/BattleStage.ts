@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { canvasTexture, groundTexture, random } from '../art';
 import type { BattleEvent, WeaponType } from '../../game/types';
+import type { CharacterContext } from '../characters/CharacterAnimator';
 
 export interface StageUnit {
   id:string;name:string;side:'ally'|'enemy';hp:number;maxHp:number;
@@ -15,6 +16,7 @@ interface StageOptions {
   scene:THREE.Scene;camera:THREE.OrthographicCamera;region:string;software:boolean;quality:'high'|'low';
   textures:{stone:THREE.Texture|null;adobe:THREE.Texture|null;wood:THREE.Texture|null;leaves:THREE.Texture|null;rock:THREE.Texture|null;glow:THREE.Texture;haze:THREE.Texture};
   frames:(kind:string)=>THREE.Texture[][]|undefined;
+  heroActions?:(context:CharacterContext)=>THREE.Texture[];
   onLayout?:(layout:BattleLayout)=>void;
 }
 type LitMaterial=THREE.MeshStandardMaterial|THREE.MeshLambertMaterial;
@@ -46,6 +48,7 @@ export class BattleStage {
   private activeActorId:string|null=null;
   private eventsPlayed=0;
   private round=1;
+  private resultContext:'victory'|'exhausted'|null=null;
   private readonly flames:{mesh:THREE.Mesh;light?:THREE.PointLight;phase:number}[]=[];
   private readonly wind:THREE.Group[]=[];
 
@@ -67,6 +70,7 @@ export class BattleStage {
     this.environment.add(new THREE.HemisphereLight(night?'#9eb8dd':'#bfdae1',night?'#262a30':'#8a7754',night?.95:1.05));
     const sun=new THREE.DirectionalLight(night?'#a6b7e8':'#ffd199',night?1.5:3.2);sun.position.set(-7,13,-8);sun.castShadow=!this.options.software;sun.shadow.mapSize.set(this.options.quality==='high'?2048:512,this.options.quality==='high'?2048:512);Object.assign(sun.shadow.camera,{left:-15,right:15,top:12,bottom:-12,near:.1,far:55});sun.shadow.bias=-.0006;sun.shadow.normalBias=.035;this.environment.add(sun,sun.target);
     const rim=new THREE.DirectionalLight(night?'#ffbe76':'#fff0c6',night?.7:.5);rim.position.set(8,5,-9);this.environment.add(rim);
+    const faceFill=new THREE.DirectionalLight(night?'#d5dfe2':'#e6e2d4',night?1.05:.3);faceFill.position.set(1,8,17);this.environment.add(faceFill);
     const groundMap=groundTexture();groundMap.repeat.set(4,4);this.ownedTextures.add(groundMap);const ground=new THREE.Mesh(new THREE.PlaneGeometry(70,65),this.lit(night?'#a6a18b':'#d6c9a1',groundMap));ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;ground.position.y=-.025;this.environment.add(ground);
     const stageGround=new THREE.Mesh(new THREE.CircleGeometry(9.5,48),this.lit('#b6a47b',groundMap));stageGround.rotation.x=-Math.PI/2;stageGround.scale.y=.58;stageGround.position.set(0,-.014,.1);stageGround.receiveShadow=true;this.environment.add(stageGround);
     // Distant ridges, middle ground terraces and foreground brush create separate depth layers.
@@ -114,9 +118,9 @@ export class BattleStage {
 
   private createCombatant(unit:StageUnit,index:number):Combatant{
     const enemy=unit.side==='enemy',captain=unit.archetype==='captain',height=enemy?(captain?3.15:unit.archetype==='spearman'?3.05:2.7):(unit.id==='gideon'||unit.id==='gideao'?2.75:2.55),width=height*.8;
-    const positions=enemy?[[-4.7,-3.7],[-3.2,-2.4],[-6.15,-5.2],[-2.9,-5.5]]:[[4.2,2.5],[5.4,1],[3.1,-.5],[6.2,3.2]],p=positions[index%positions.length];
+    const positions=enemy?[[-5.1,-3.4],[-1.7,-2.6],[-8.7,-3.2],[-2.9,-5.5]]:[[4.2,2.5],[5.4,1],[3.1,-.5],[6.2,3.2]],p=positions[index%positions.length];
     const group=new THREE.Group();group.position.set(p[0],0,p[1]);this.actors.add(group);const frames=this.getFrames(unit),map=frames?.[0]?.[0]??null;
-    const material:LitMaterial=this.options.software?new THREE.MeshLambertMaterial({map,color:enemy?'#e2d7bf':'#fff4df',transparent:true,alphaTest:.3,side:THREE.DoubleSide}):new THREE.MeshStandardMaterial({map,color:enemy?'#e2d7bf':'#fff4df',transparent:true,alphaTest:.3,side:THREE.DoubleSide,roughness:.95});
+    const material:LitMaterial=this.options.software?new THREE.MeshLambertMaterial({map,color:enemy?'#fff3dc':'#fff7e8',transparent:true,alphaTest:.3,side:THREE.DoubleSide}):new THREE.MeshStandardMaterial({map,color:enemy?'#fff3dc':'#fff7e8',transparent:true,alphaTest:.3,side:THREE.DoubleSide,roughness:.95});
     const body=new THREE.Mesh(new THREE.PlaneGeometry(width,height),material);body.position.y=height/2;body.castShadow=true;group.add(body);
     const shadow=new THREE.Mesh(new THREE.CircleGeometry(.65,24),new THREE.MeshBasicMaterial({color:'#1b201e',transparent:true,opacity:.3,depthWrite:false}));shadow.rotation.x=-Math.PI/2;shadow.scale.y=.5;shadow.position.y=.015;group.add(shadow);
     const weapon=this.createWeapon(unit.weaponType??(unit.archetype==='spearman'?'spear':unit.archetype==='archer'?'bow':'sword'));weapon.position.set(enemy?.35:-.35,height*.47,.13);group.add(weapon);weapon.visible=false;
@@ -127,7 +131,7 @@ export class BattleStage {
   private getFrames(unit:StageUnit){return this.options.frames(unit.side==='enemy'?`enemy-${unit.archetype??'raider'}`:unit.id==='gideon'||unit.id==='gideao'?'gideao':unit.id==='pura'?'pura':'villager')??this.options.frames(unit.side==='enemy'?'guard':'pura');}
   private createWeapon(kind:WeaponType){const group=new THREE.Group(),metal=this.lit('#c1c3b9'),wood=this.lit('#927b58',this.options.textures.wood);group.userData.weaponType=kind;if(kind==='sword'){this.box(0,.42,0,.075,.85,.035,metal,group);this.box(0,-.05,0,.28,.045,.06,this.lit('#d1ad63'),group);this.box(0,-.18,0,.06,.25,.06,wood,group);}else if(kind==='spear'){this.cylinder(0,.15,0,.025,1.65,wood,group);const point=new THREE.Mesh(new THREE.ConeGeometry(.075,.32,4),metal);point.position.y=1.12;group.add(point);}else if(kind==='bow'){const bow=new THREE.Mesh(new THREE.TorusGeometry(.48,.035,4,18,Math.PI),wood);bow.rotation.z=-Math.PI/2;group.add(bow);this.box(.0,0,0,.012,.95,.012,this.lit('#d0bc89'),group);}else this.cylinder(0,.25,0,.045,1.65,wood,group);return group;}
 
-  resize(width:number,height:number){const aspect=width/height,halfHeight=Math.max(5.25,7.8/aspect);const camera=this.options.camera;camera.left=-halfHeight*aspect;camera.right=halfHeight*aspect;camera.top=halfHeight;camera.bottom=-halfHeight;camera.zoom=1;camera.updateProjectionMatrix();this.updateCamera(0);this.emitLayout();}
+  resize(width:number,height:number){const aspect=width/height,halfHeight=Math.max(5.25,9.9/aspect);const camera=this.options.camera;camera.left=-halfHeight*aspect;camera.right=halfHeight*aspect;camera.top=halfHeight;camera.bottom=-halfHeight;camera.zoom=1;camera.updateProjectionMatrix();this.updateCamera(0);this.emitLayout();}
   setQuality(quality:'high'|'low'){this.options.quality=quality;this.environment.traverse(child=>{if(child instanceof THREE.DirectionalLight&&child.castShadow){child.shadow.mapSize.set(quality==='high'?2048:512,quality==='high'?2048:512);child.shadow.map?.dispose();child.shadow.map=null;}});}
 
   animate(events:readonly BattleEvent[],speed=1,onEvent?:(event:BattleEvent)=>void):Promise<void>{
@@ -174,7 +178,7 @@ export class BattleStage {
     else if(event.kind==='heal'&&receiver){receiver.hp=event.hpAfter??Math.min(receiver.unit.maxHp,receiver.hp+(event.amount??0));this.floating(receiver,`+${event.amount??0}`,'#c7d5a1',1);}
     else if(event.kind==='boost'&&actor){this.floating(actor,`ÍMPETO ×${(event.hitCount??event.amount??1)}`,'#e7c584',.7);this.groundRing(actor);}
     else if(event.kind==='tactic'&&receiver){const label=event.action==='command'?'FORMAÇÃO':event.action==='observe'?'OBSERVAR':event.action==='cover'?'COBERTURA':event.action==='supply'?'SUPRIMENTO':'TÁTICA';this.floating(receiver,label,'#d9d9bc',.7);}
-    else if(event.kind==='result'){const text=event.action==='victory'?'VITÓRIA':event.action==='defeat'?'RETIRADA':'ENCONTRO ENCERRADO';this.floatingAt(new THREE.Vector3(0,3,-.5),text,'#f1d49a',1.6,1.3);}
+    else if(event.kind==='result'){this.resultContext=event.action==='victory'?'victory':'exhausted';const text=event.action==='victory'?'VITÓRIA':event.action==='defeat'?'RETIRADA':'ENCONTRO ENCERRADO';this.floatingAt(new THREE.Vector3(0,3,-.5),text,'#f1d49a',1.6,1.3);}
   }
 
   private arrow(){const group=new THREE.Group();this.cylinder(0,0,0,.016,.85,this.lit('#d6c5a2'),group);const tip=new THREE.Mesh(new THREE.ConeGeometry(.045,.16,3),this.lit('#cdd0c2'));tip.position.y=.48;group.add(tip);return group;}
@@ -188,9 +192,11 @@ export class BattleStage {
     for(const actor of this.units.values()){
       const acting=this.activeActorId===actor.unit.id,receiving=animation?.event.kind==='hit'&&animation.event.targetId===actor.unit.id,frames=this.getFrames(actor.unit);if(frames){const direction=actor.unit.side==='ally'?3:1,frame=acting&&animation?.event.kind==='hit'?Math.min(3,Math.floor(animation.age/animation.duration*4)):Math.floor(this.time*2+actor.phase)%2;actor.body.material.map=frames[direction]?.[frame]??frames[0][frame];}
       const usesDirectionalHero=actor.unit.id==='gideon'||actor.unit.id==='gideao';actor.body.scale.x=usesDirectionalHero?1:actor.unit.side==='ally'?-1:1;
-      const firstMap=frames?.[0]?.[0],spriteAspect=firstMap?.userData.spriteAspect as number|undefined,visibleRatio=firstMap?.userData.visibleHeight as number|undefined,planeHeight=spriteAspect?actor.height/(visibleRatio??1):actor.height;
+      let firstMap=frames?.[0]?.[0];
+      if(usesDirectionalHero&&this.options.heroActions){const context:CharacterContext=receiving?'hurt':acting&&animation?.event.kind==='hit'?'attack':actor.guarding?'guard':this.resultContext??(actor.hp<actor.unit.maxHp*.25?'exhausted':'ready'),actionFrames=this.options.heroActions(context);if(actionFrames.length){const frame=animation&&(acting||receiving)?Math.min(actionFrames.length-1,Math.floor(animation.age/animation.duration*actionFrames.length)):Math.floor(this.time*2)%actionFrames.length;actor.body.material.map=actionFrames[frame];firstMap=actionFrames[0];actor.body.scale.x=1;}}
+      const spriteAspect=firstMap?.userData.spriteAspect as number|undefined,visibleRatio=firstMap?.userData.visibleHeight as number|undefined,planeHeight=spriteAspect?actor.height/(visibleRatio??1):actor.height;
       if(spriteAspect){actor.body.scale.x*=(planeHeight*spriteAspect)/actor.width;actor.body.scale.y=planeHeight/actor.height;}
-      actor.body.position.y=planeHeight/2+Math.sin(this.time*2+actor.phase)*.016-(actor.broken?.18:0);actor.shield.quaternion.copy(this.options.camera.quaternion);actor.shield.visible=actor.guarding&&!actor.broken;
+      actor.body.position.y=planeHeight/2-planeHeight*(firstMap?.userData.baselineRatio??0)+Math.sin(this.time*2+actor.phase)*.016-(actor.broken?.18:0);actor.shield.quaternion.copy(this.options.camera.quaternion);actor.shield.visible=actor.guarding&&!actor.broken;
       if(!acting&&!receiving)actor.body.rotation.z=this.options.camera.rotation.z+(actor.broken?(actor.unit.side==='enemy'?.12:-.12):0);
       if(actor.hp<=0){actor.body.rotation.z=actor.unit.side==='enemy'?.25:-.25;actor.body.material.opacity=THREE.MathUtils.lerp(actor.body.material.opacity,.24,1-Math.exp(-dt*4));}
     }
@@ -200,6 +206,7 @@ export class BattleStage {
   }
   private updateCamera(_dt:number){const camera=this.options.camera,intro=this.reducedMotion?1:this.introduction,ease=intro*intro*(3-2*intro);camera.position.copy(this.cameraBase).add(new THREE.Vector3(0,(1-ease)*.7,(1-ease)*1.5));if(!this.reducedMotion)camera.position.x+=Math.sin(this.time*45)*this.cameraShake;camera.lookAt(this.target);camera.zoom=.96+.04*ease;camera.updateProjectionMatrix();}
   getFocusDistance(){return this.options.camera.position.distanceTo(this.target);}
+  getFocusPoints(){const event=this.current?.event,actor=event?this.units.get(event.actorId):undefined,target=event?this.units.get(event.targetId??''):undefined;return{primary:actor?.group.position.clone().add(new THREE.Vector3(0,1.2,0))??new THREE.Vector3(-2,1.2,-2.5),secondary:target?.group.position.clone().add(new THREE.Vector3(0,1.2,0))??new THREE.Vector3(2,1.2,1)};}
   getLayout():BattleLayout {const camera=this.options.camera;return{units:[...this.units.values()].map(actor=>{const head=actor.group.position.clone().add(new THREE.Vector3(0,actor.height+.22,0)).project(camera),foot=actor.group.position.clone().project(camera);return{id:actor.unit.id,x:(foot.x+1)/2,y:(1-foot.y)/2,headY:(1-head.y)/2,footY:(1-foot.y)/2,side:actor.unit.side,visible:actor.group.visible};}),animating:!!this.current,activeActorId:this.activeActorId};}
   private emitLayout(){this.options.onLayout?.(this.getLayout());}
   getDebugInfo(){return{active:true,region:this.options.region,eventsPlayed:this.eventsPlayed,animating:!!this.current,currentEvent:this.current?.event.id??null,activeActorId:this.activeActorId,units:[...this.units.values()].map(actor=>({id:actor.unit.id,side:actor.unit.side,hp:actor.hp,x:actor.group.position.x,z:actor.group.position.z,visible:actor.group.visible,broken:actor.broken})),layout:this.getLayout()};}
