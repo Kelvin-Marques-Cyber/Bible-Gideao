@@ -1,5 +1,18 @@
 # Original art provenance
 
+## enemies-battle.png
+
+- Built-in ImageGen generation with `people-walk.png` as original style reference and `transparent_background: true`.
+- PNG: 1254 × 1254, RGBA, transparent and opaque alpha verified. Four unnamed human archetypes: raider, spearman, archer and unit captain.
+- Sixteen battle poses, facing right: idle, anticipation, attack and recovery per archetype. No commercial game character or screenshot was supplied to the image model.
+- Explicit source bounds and foot pivots are recorded in `src/content/enemySprites.ts`; extended weapons require a wide transparent runtime canvas. Clothing and equipment are artistic ancient Levantine reconstruction.
+
+Exact generation prompt:
+
+```text
+Use case: historical-scene. Asset type: ORIGINAL ENEMY BATTLE SPRITE SHEET for a mobile HD-2D biblical RPG. Use attached original atlas only as reference for crisp handcrafted pixel clusters, warm shading, ancient linen/leather textures and serious four-heads-tall JRPG proportions. Create exactly16 separate full-body human sprites on genuinely transparent square canvas arranged FOUR COLUMNS by FOUR ROWS. Every figure facing RIGHT in a three-quarter side profile to confront heroes on right side of battlefield. The four ROWS are distinct ancient Near Eastern human enemies with clearly different weapon silhouettes; no fantasy monsters. Each row has FOUR consecutive poses: column1 alert IDLE ready stance, column2 ANTICIPATION drawn-back weapon, column3 controlled ATTACK extension to right within own cell, column4 RECOVERY low defensive stance. Keep face/costume/weapon/scale identical across each row. ROW1 RAIDER: wiry adult darkhaired bearded man, sand headwrap, dusty ochre short tunic, brown belt and sandals, short bronze curved blade, no armor and no shield; mobile skirmisher silhouette. ROW2 SPEARMAN: taller bearded man, simple rounded bronze cap, sand linen tunic with mutedburgundy sash, brown leather shoulder protection, long wood spear held upright beside body in idle and tilted diagonally right in attack; compact pose so no neighboring cell overlap. ROW3 ARCHER: lean man with dark curlyhair, mutedolive tunic, cream hood down, leather quiver visibly on back, simple wooden recurved bow held to right; anticipates then releases single arrow to the right, NO detached arrows outside figurecell. ROW4 UNIT CAPTAIN: stockier experienced middleaged man, short dark beard, plain bronzehelmet, mutedburgundy tunic with layered leatherarmor, round weathered woodshield on left arm and bronzeshortsword right hand; firm commanding posture. All warmoliveskin, human expressive faces. These are artistic ancientLevantine reconstructions, not Romans or medievalknights: NO plumed helmets, metalplate suits, heraldry, crosses, magical effects. Rich deliberate visible squarepixelclusters, intricate clothfolds, leatherstitching, bronzeedgeglints, legiblesilhouettes. Not smooth illustration and not blurred. Equaluniformcells, all feet alignedon samebaseline perrow, sameheightandscale, ampletransparentgaps, entiretyofweaponandbodyinsideeachcell. Characterheightabout82%cell. NO text, letters, icons, numbers, shadows, ground, platforms, backgrounds, frames, gridlines, logos, watermark or extrafigures.
+```
+
 ## people-walk.png
 
 - Built-in ImageGen generation using the original `gideao-walk.png` as style reference, with `transparent_background: true`.

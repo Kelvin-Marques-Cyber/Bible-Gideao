@@ -1,8 +1,8 @@
 /* The production build injects a content hash and the complete asset list. */
-const CACHE = "gideao-2f674674cb0f";
+const CACHE = "gideao-bc27e96b14fa";
 const BASE = new URL('./', self.location.href).pathname;
 self.addEventListener('install', event => {
-  event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(["./","./assets/PROVENANCE.md","./assets/gideao-walk.png","./assets/gideao.png","./assets/index-BkmTRdJ5.js","./assets/index-opewQOLt.css","./assets/limestone-wall.png","./assets/people-walk.png","./fonts/Cinzel-OFL.txt","./fonts/DMSans-OFL.txt","./fonts/cinzel.ttf","./fonts/dm-sans.ttf","./icon-192.png","./icon-512.png","./icon.svg","./index.html","./manifest.webmanifest","./version.json"])));
+  event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(["./","./assets/PROMPTS-HERO-V2.md","./assets/PROVENANCE.md","./assets/enemies-battle.png","./assets/gideao-actions-v2.png","./assets/gideao-walk-v2.png","./assets/gideao-walk.png","./assets/gideao.png","./assets/index-D9GkyH_F.css","./assets/index-Wp3P-sAR.js","./assets/limestone-wall.png","./assets/people-walk.png","./fonts/Cinzel-OFL.txt","./fonts/DMSans-OFL.txt","./fonts/cinzel.ttf","./fonts/dm-sans.ttf","./icon-192.png","./icon-512.png","./icon.svg","./index.html","./manifest.webmanifest","./version.json"])));
   self.skipWaiting();
 });
 self.addEventListener('activate', event => {
