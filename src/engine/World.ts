@@ -9,6 +9,10 @@ import { adobeTexture, animalTexture, characterTexture, foliageTexture, glowText
 import { canSeePlayer, moveWithCollisions, type Obstacle } from './movement';
 import { gideaoAtlas } from '../content/sprites';
 import { peopleAtlas } from '../content/peopleSprites';
+import { enemiesBattleAtlas } from '../content/enemySprites';
+import { BattleStage, type BattleLayout, type StageState, type StageUnit } from './battle/BattleStage';
+import type { BattleEvent } from '../game/types';
+export type { BattleLayout } from './battle/BattleStage';
 
 export type Region = 'ofra' | 'altar' | 'harode' | 'midian';
 export interface NearbyInteraction { id: string; label: string; name: string; kind: 'npc' | 'object' | 'battle' | 'exit'; distance: number; x: number; z: number; }
@@ -19,9 +23,10 @@ export interface WorldCallbacks {
   onEncounter?: (id: string) => void;
   onStats?: (stats: { fps: number; quality: 'high' | 'low'; drawCalls: number; triangles: number }) => void;
   onDetection?: (amount: number) => void;
+  onBattleLayout?: (layout:BattleLayout)=>void;
 }
-export interface BattleUnit { id: string; name: string; side: 'ally' | 'enemy'; hp: number; maxHp: number; }
-export type BattleVisual = { units: BattleUnit[]; status?: string };
+export type BattleUnit = StageUnit;
+export type BattleVisual = StageState;
 type InteractionDefinition = Omit<NearbyInteraction, 'distance'>;
 export const REGION_INTERACTIONS: Record<Region, InteractionDefinition[]> = {
   ofra: [
@@ -64,7 +69,6 @@ export const REGION_INTERACTIONS: Record<Region, InteractionDefinition[]> = {
 interface Actor { id: string; kind: string; group: THREE.Group; body: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshStandardMaterial>; frames: THREE.Texture[][]; base: THREE.Vector3; route: THREE.Vector3[]; waypoint: number; speed: number; phase: number; direction: number; guard: boolean; }
 interface Flame { light?: THREE.PointLight; mesh: THREE.Mesh; glow: THREE.Sprite; phase: number; base: number; }
 interface WindObject { object: THREE.Object3D; base: number; phase: number; strength: number; }
-interface Attack { actor: THREE.Object3D; start: THREE.Vector3; end: THREE.Vector3; progress: number; target?: THREE.Mesh; }
 
 /** Imperative renderer: React owns UI and campaign state; this class owns the living 3D world. */
 export class World {
@@ -109,10 +113,9 @@ export class World {
   private cinematic: { kind: string; progress: number; duration: number } | null = null;
   private objective = 'lagar';
   private markers = new Map<string, THREE.Group>();
-  private battle = new THREE.Group();
-  private battleUnits = new Map<string, THREE.Object3D>();
+  private battleStage:BattleStage|null=null;
+  private explorationSnapshot:{position:THREE.Vector3;quaternion:THREE.Quaternion;zoom:number;target:THREE.Vector3;background:THREE.Scene['background'];fog:THREE.Scene['fog'];cinematic:World['cinematic']}|null=null;
   private battleActive = false;
-  private attack: Attack | null = null;
   private particles!: THREE.Points;
   private dustPositions!: Float32Array;
   private dustLife = new Float32Array(96);
@@ -163,10 +166,10 @@ export class World {
     const gl=this.renderer.getContext(),debug=gl.getExtension('WEBGL_debug_renderer_info');
     this.softwareRenderer=!!debug&&/swiftshader|llvmpipe|software|softpipe/i.test(gl.getParameter(debug.UNMASKED_RENDERER_WEBGL));
     this.bokeh.enabled=!this.softwareRenderer&&window.innerWidth>=900;
-    this.scene.add(this.root, this.player, this.battle);
+    this.scene.add(this.root, this.player);
     this.hero = this.createActor('gideao', 'gideao', 0, 6, 0); this.player.add(this.hero.group);
     this.hero.group.position.set(0, 0, 0); this.player.position.set(0, 0, 6);
-    this.loadHeroArtwork();this.loadPeopleArtwork();this.loadArchitecturalArtwork();
+    this.loadHeroArtwork();this.loadPeopleArtwork();this.loadArchitecturalArtwork();this.loadEnemyArtwork();
     this.setRegion('ofra');
     if(this.softwareRenderer||window.innerWidth<900)this.setQuality('low',true);
     this.resizeObserver = new ResizeObserver(() => this.resize()); this.resizeObserver.observe(container); this.resize();
@@ -220,6 +223,33 @@ export class World {
     this.adobe.bumpMap=this.adobe.map;this.adobe.bumpScale=.035;this.timber.bumpMap=this.timber.map;this.timber.bumpScale=.025;
   }
 
+  private loadEnemyArtwork() {
+    const source=new Image();source.onload=()=>{
+      if(this.disposed)return;
+      enemiesBattleAtlas.rows.forEach((archetype,row)=>{
+        const frames=enemiesBattleAtlas.frames[row].map(crop=>{
+          const canvas=document.createElement('canvas');canvas.width=enemiesBattleAtlas.canvasWidth;canvas.height=enemiesBattleAtlas.canvasHeight;const ctx=canvas.getContext('2d')!;ctx.imageSmoothingEnabled=false;
+          ctx.drawImage(source,crop.x,crop.y,crop.width,crop.height,enemiesBattleAtlas.canvasAnchorX-crop.anchorX,canvas.height-crop.height-enemiesBattleAtlas.baseline,crop.width,crop.height);
+          if(enemiesBattleAtlas.keepLargestComponent)this.keepLargestAlphaComponent(ctx,canvas.width,canvas.height);
+          const texture=new THREE.CanvasTexture(canvas);texture.colorSpace=THREE.SRGBColorSpace;texture.magFilter=THREE.NearestFilter;texture.minFilter=THREE.LinearFilter;texture.userData.spriteAspect=canvas.width/canvas.height;texture.userData.visibleHeight=enemiesBattleAtlas.frames[row][0].height/canvas.height;return texture;
+        });
+        this.textureCache.set(`battle-${archetype}`,Array.from({length:4},()=>frames));
+      });
+    };source.src=`${import.meta.env.BASE_URL}${enemiesBattleAtlas.url}`;
+  }
+
+  private keepLargestAlphaComponent(ctx:CanvasRenderingContext2D,width:number,height:number) {
+    const pixels=ctx.getImageData(0,0,width,height),labels=new Int32Array(width*height),queue=new Int32Array(width*height);let label=0,largestLabel=0,largestSize=0;
+    for(let index=0;index<labels.length;index++){
+      if(labels[index]||pixels.data[index*4+3]<26)continue;
+      label++;let first=0,last=1;queue[0]=index;labels[index]=label;
+      while(first<last){const current=queue[first++],x=current%width,y=Math.floor(current/width);for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){if(dx===0&&dy===0)continue;const nx=x+dx,ny=y+dy;if(nx<0||nx>=width||ny<0||ny>=height)continue;const next=ny*width+nx;if(!labels[next]&&pixels.data[next*4+3]>=26){labels[next]=label;queue[last++]=next;}}}
+      if(last>largestSize){largestSize=last;largestLabel=label;}
+    }
+    for(let index=0;index<labels.length;index++)if(labels[index]!==largestLabel)pixels.data[index*4+3]=0;
+    ctx.putImageData(pixels,0,0);
+  }
+
   private applyPeopleArtwork(actor:Actor) {
     const kind=actor.kind==='villager'?'pura':actor.kind,frames=this.textureCache.get(`people-${kind}`);if(!frames)return;
     actor.frames=frames;actor.body.geometry.dispose();actor.body.geometry=new THREE.PlaneGeometry(1.48,1.85);actor.body.position.y=.925;actor.body.material.map=frames[0][0];actor.body.material.needsUpdate=true;actor.body.userData.peopleAtlas=true;
@@ -233,12 +263,14 @@ export class World {
     this.camera.top = halfHeight; this.camera.bottom = -halfHeight; this.camera.left = -halfHeight * width / height; this.camera.right = halfHeight * width / height; this.camera.updateProjectionMatrix();
     (this.bokeh.uniforms as Record<string,{value:number}>).aspect.value=width/height;
     if(width<900)this.bokeh.enabled=false;
+    this.battleStage?.resize(width,height);
   }
 
   setRegion(region: Region) {
+    if(this.battleStage)this.setBattle(null);
     this.region = region; this.obstacles = []; this.actors = []; this.flames = []; this.wind = []; this.interiors=[]; this.markers.clear(); this.water = undefined; this.altarGroup = undefined;
     this.scene.remove(this.root); this.disposeGroup(this.root); this.root = new THREE.Group(); this.scene.add(this.root);
-    this.victory = false; this.restoredStage = -1; this.bloom.strength=.28; this.detection = 0; this.battleActive = false; this.battle.visible = false; this.encounterCooldown = 0;
+    this.victory = false; this.restoredStage = -1; this.bloom.strength=.28; this.detection = 0; this.battleActive = false; this.encounterCooldown = 0;
     this.buildLighting(region); this.buildTerrain();
     if (region === 'ofra') this.buildOfra(); else if (region === 'altar') this.buildAltar(); else if (region === 'harode') this.buildHarode(); else this.buildMidian();
     this.buildParticles(); this.buildMarkers(); this.batchStaticMeshes();this.applySoftwareLighting();
@@ -561,32 +593,44 @@ export class World {
   setPosition(x: number,z: number) { this.player.position.set(THREE.MathUtils.clamp(x,-17.5,17.5),0,THREE.MathUtils.clamp(z,-17.5,17.5));this.cameraTarget.copy(this.player.position);this.notifyNearby();this.callbacks.onPosition?.({x:this.player.position.x,z:this.player.position.z}); }
   getPosition() { return {x:this.player.position.x,z:this.player.position.z}; }
   getNearby() { this.notifyNearby();return this.nearby; }
-  getDebugInfo() { return {region:this.region,position:this.getPosition(),fps:this.fps,nearby:this.nearby.map(p=>p.id),obstacles:this.obstacles.map(o=>({...o})),quality:this.quality,battle:this.battleActive,narrativeVictory:this.victory,drawCalls:this.renderer.info.render.calls,triangles:this.renderer.info.render.triangles,software:this.softwareRenderer,pixelRatio:this.renderer.getPixelRatio(),depthOfField:this.bokeh.enabled,cinematic:this.cinematic?{...this.cinematic}:null}; }
+  getDebugInfo() { return {region:this.region,position:this.getPosition(),fps:this.fps,nearby:this.nearby.map(p=>p.id),obstacles:this.obstacles.map(o=>({...o})),quality:this.quality,battle:this.battleActive,battleStage:this.battleStage?.getDebugInfo()??null,narrativeVictory:this.victory,drawCalls:this.renderer.info.render.calls,triangles:this.renderer.info.render.triangles,software:this.softwareRenderer,pixelRatio:this.renderer.getPixelRatio(),depthOfField:this.bokeh.enabled,cinematic:this.cinematic?{...this.cinematic}:null}; }
   interact() { if(this.nearby[0])this.callbacks.onInteract?.(this.nearby[0].id); }
   setObjective(id: string) { this.objective=id; }
 
   setQuality(quality: 'high'|'low', automatic=false) {
     this.quality=quality;if(!automatic)this.qualityPinned=true;this.renderer.setPixelRatio(quality==='high'?Math.min(window.devicePixelRatio||1,1.65):this.softwareRenderer?.4:.85);this.renderer.shadowMap.enabled=!this.softwareRenderer;this.sun.shadow.mapSize.set(quality==='high'?2048:512,quality==='high'?2048:512);this.sun.shadow.map?.dispose();this.sun.shadow.map=null;this.bloom.enabled=quality==='high';this.bokeh.enabled=quality==='high'&&!this.softwareRenderer&&window.innerWidth>=900;this.resize();
+    this.battleStage?.setQuality(quality);
   }
 
   setBattle(state: boolean | BattleVisual | null) {
-    this.battleActive=!!state;this.battle.visible=!!state;this.input.set(0,0);this.keys.clear();
-    if(!state){this.player.visible=true;this.notifyNearby();return;}
-    this.player.visible=false;
-    const units=typeof state==='boolean'?[{id:'gideao',name:'Gideão',side:'ally' as const,hp:100,maxHp:100},{id:'pura',name:'Purá',side:'ally' as const,hp:100,maxHp:100},{id:'enemy-0',name:'Saqueador',side:'enemy' as const,hp:100,maxHp:100},{id:'enemy-1',name:'Lanceiro',side:'enemy' as const,hp:100,maxHp:100}]:state.units;
-    if(this.battleUnits.size&&units.every(unit=>this.battleUnits.has(unit.id))){for(const unit of units){const actor=this.battleUnits.get(unit.id)!;actor.visible=unit.hp>0;}return;}
-    this.disposeGroup(this.battle);this.battle.clear();this.battleUnits.clear();
-    const center=this.player.position.clone();let allies=0,enemies=0;
-    for(const unit of units){const ally=unit.side==='ally',index=ally?allies++:enemies++,isGideon=unit.id==='gideao'||unit.id==='gideon';const actor=this.createActor(`battle-${unit.id}`,ally?(isGideon?'gideao':unit.id==='pura'?'pura':'villager'):'guard',0,0,0);this.actors=this.actors.filter(a=>a!==actor);this.root.remove(actor.group);this.battle.add(actor.group);actor.group.position.set(center.x+(ally?-3.0:2.8)+(index%2)*.45,0,center.z+(index-1)*1.8);actor.body.quaternion.copy(this.camera.quaternion);if(isGideon&&this.hero.body.userData.artwork){actor.body.material.map=this.hero.body.userData.artwork;actor.body.scale.set(1.2,1.2,1);actor.body.position.y=.98;}this.battleUnits.set(unit.id,actor.group);actor.group.userData.body=actor.body;actor.group.visible=unit.hp>0;}
-    this.cameraTarget.copy(center);this.callbacks.onNearby?.([]);this.nearby=[];this.reportedNearby=[];this.applySoftwareLighting();
+    this.input.set(0,0);this.keys.clear();
+    if(!state){
+      this.battleStage?.dispose();this.battleStage=null;this.battleActive=false;this.root.visible=true;this.player.visible=true;
+      const snapshot=this.explorationSnapshot;this.explorationSnapshot=null;
+      this.resize();if(snapshot){this.camera.position.copy(snapshot.position);this.camera.quaternion.copy(snapshot.quaternion);this.camera.zoom=snapshot.zoom;this.cameraTarget.copy(snapshot.target);this.scene.background=snapshot.background;this.scene.fog=snapshot.fog;this.cinematic=snapshot.cinematic;this.camera.updateProjectionMatrix();}
+      this.callbacks.onBattleLayout?.({units:[],animating:false,activeActorId:null});this.notifyNearby();return;
+    }
+    const visual:StageState=typeof state==='boolean'?{units:[{id:'gideon',name:'Gideão',side:'ally',hp:100,maxHp:100,weaponType:'sword'},{id:'pura',name:'Purá',side:'ally',hp:100,maxHp:100,weaponType:'spear'},{id:'enemy-0',name:'Saqueador',side:'enemy',hp:100,maxHp:100,archetype:'raider',weaponType:'sword'},{id:'enemy-1',name:'Lanceiro',side:'enemy',hp:100,maxHp:100,archetype:'spearman',weaponType:'spear'}]}:state;
+    if(this.battleStage){this.battleStage.setState(visual);return;}
+    this.explorationSnapshot={position:this.camera.position.clone(),quaternion:this.camera.quaternion.clone(),zoom:this.camera.zoom,target:this.cameraTarget.clone(),background:this.scene.background,fog:this.scene.fog,cinematic:this.cinematic?{...this.cinematic}:null};
+    this.cinematic=null;this.battleActive=true;this.root.visible=false;this.player.visible=false;
+    this.battleStage=new BattleStage({scene:this.scene,camera:this.camera,region:this.region,software:this.softwareRenderer,quality:this.quality,textures:{stone:this.stone.map,adobe:this.adobe.map,wood:this.timber.map,leaves:this.foliageMaterial.map,rock:this.rockMaterial.map,glow:this.glow,haze:this.haze},frames:kind=>kind==='gideao'?this.hero.frames:kind.startsWith('enemy-')?this.textureCache.get(`battle-${kind.slice(6)}`):this.textureCache.get(`people-${kind==='villager'?'pura':kind}`),onLayout:layout=>this.callbacks.onBattleLayout?.(layout)},visual);
+    const rect=this.container.getBoundingClientRect();this.battleStage.resize(rect.width,rect.height);this.callbacks.onNearby?.([]);this.nearby=[];this.reportedNearby=[];
   }
 
   animateAttack(actorId: string,targetId: string) {
-    const actor=this.battleUnits.get(actorId)||[...this.battleUnits.values()][0],target=this.battleUnits.get(targetId)||[...this.battleUnits.values()].at(-1);if(!actor||!target)return;
-    this.attack={actor,start:actor.position.clone(),end:actor.position.clone().lerp(target.position,.65),progress:0,target:target.userData.body};
+    void this.battleStage?.animate([{id:Date.now(),actorId,targetId,action:'attack',kind:'hit'}]);
   }
 
+  animateBattleEvents(events:readonly BattleEvent[],speed=1,onEvent?:(event:BattleEvent)=>void):Promise<void> {
+    if(this.battleStage)return this.battleStage.animate(events,speed,onEvent);
+    events.forEach(event=>onEvent?.(event));return Promise.resolve();
+  }
+
+  getBattleLayout():BattleLayout { return this.battleStage?.getLayout()??{units:[],animating:false,activeActorId:null}; }
+
   playCinematic(kind='intro',duration=5) {
+    if(this.battleActive)return;
     if(kind==='army'&&this.region==='harode'&&this.player.position.distanceTo(new THREE.Vector3(7,0,-4))<3)kind='water';
     this.cinematic={kind,progress:0,duration};
     if(kind.includes('altar'))this.applyDestroyedAltar(false);
@@ -704,15 +748,16 @@ export class World {
     if(this.water){this.water.material.color.setHSL(.48,.2,.4+Math.sin(this.time*.8)*.015);this.water.position.y=.04+Math.sin(this.time*1.3)*.008;}
     for(let i=0;i<96;i++)if(this.dustLife[i]>0){this.dustLife[i]-=dt;this.dustPositions[i*3]+=(Math.sin(i)*.04+.1)*dt;this.dustPositions[i*3+1]+=.22*dt;if(this.dustLife[i]<=0)this.dustPositions[i*3+1]=-100;}this.dust.geometry.attributes.position.needsUpdate=true;
     if(this.altarGroup?.userData.falling){this.altarGroup.rotation.z=THREE.MathUtils.lerp(this.altarGroup.rotation.z,.13,dt*2);this.altarGroup.position.y=THREE.MathUtils.lerp(this.altarGroup.position.y,-.75,dt*2);}
-    if(this.attack){const a=this.attack;a.progress+=dt*2.3;const t=Math.min(1,a.progress),curve=Math.sin(t*Math.PI);a.actor.position.copy(a.start).lerp(a.end,curve);if(a.target){a.target.material instanceof THREE.MeshStandardMaterial&&(a.target.material.emissive.set(curve>.9?'#a03b27':'#000000'));}if(t>=1){a.actor.position.copy(a.start);this.attack=null;}}
-    for(const unit of this.battleUnits.values()){const body=unit.userData.body as THREE.Mesh|undefined;if(body)body.quaternion.copy(this.camera.quaternion);}
   }
 
   private tick = (now: number) => {
     if(this.disposed)return;const actualDt=this.lastTime?(now-this.lastTime)/1000:1/60,dt=Math.min(.25,actualDt);this.lastTime=now;this.time+=dt;this.frame++;
-    if(!this.paused&&!this.battleActive&&!this.cinematic)this.updateMovement(dt);else this.animateActor(this.hero,dt,false);
-    this.updateActors(this.paused&&!this.cinematic?0:dt);this.updateCamera(actualDt);this.updateEffects(dt);
-    if(this.frame%10===0){this.notifyNearby();if(!this.paused)this.callbacks.onPosition?.(this.getPosition());}
+    if(this.battleStage){this.battleStage.update(actualDt);(this.bokeh.uniforms as Record<string,{value:number}>).focus.value=this.battleStage.getFocusDistance();}
+    else{
+      if(!this.paused&&!this.cinematic)this.updateMovement(dt);else this.animateActor(this.hero,dt,false);
+      this.updateActors(this.paused&&!this.cinematic?0:dt);this.updateCamera(actualDt);this.updateEffects(dt);
+      if(this.frame%10===0){this.notifyNearby();if(!this.paused)this.callbacks.onPosition?.(this.getPosition());}
+    }
     if(this.quality==='high')this.composer.render();else this.renderer.render(this.scene,this.camera);
     this.sampleFrames++;this.sampleTime+=actualDt;
     if(this.sampleTime>2){this.fps=Math.round(this.sampleFrames/this.sampleTime);this.callbacks.onStats?.({fps:this.fps,quality:this.quality,drawCalls:this.renderer.info.render.calls,triangles:this.renderer.info.render.triangles});if(this.fps<40)this.bokeh.enabled=false;if(this.fps<27)this.slowSamples++;else this.slowSamples=Math.max(0,this.slowSamples-1);if(this.slowSamples>=3&&!this.qualityPinned&&this.quality==='high')this.setQuality('low',true);this.sampleFrames=0;this.sampleTime=0;}
@@ -724,6 +769,6 @@ export class World {
   }
 
   dispose() {
-    this.disposed=true;cancelAnimationFrame(this.raf);this.resizeObserver.disconnect();window.removeEventListener('keydown',this.onKeyDown);window.removeEventListener('keyup',this.onKeyUp);window.removeEventListener('blur',this.onBlur);this.disposeGroup(this.root);this.disposeGroup(this.player);this.disposeGroup(this.battle);this.textureCache.forEach(directions=>directions.flat().forEach(t=>t.dispose()));this.stone.map?.dispose();this.glow.dispose();[this.stone,this.adobe,this.timber,this.sand].forEach(m=>m.dispose());this.materialCache.forEach(m=>m.dispose());this.contactShadowMaterial.dispose();this.foliageMaterial.dispose();this.composer.dispose();this.renderer.dispose();this.renderer.domElement.remove();
+    this.disposed=true;cancelAnimationFrame(this.raf);this.resizeObserver.disconnect();window.removeEventListener('keydown',this.onKeyDown);window.removeEventListener('keyup',this.onKeyUp);window.removeEventListener('blur',this.onBlur);this.battleStage?.dispose();this.disposeGroup(this.root);this.disposeGroup(this.player);this.textureCache.forEach(directions=>directions.flat().forEach(t=>t.dispose()));this.stone.map?.dispose();this.glow.dispose();[this.stone,this.adobe,this.timber,this.sand].forEach(m=>m.dispose());this.materialCache.forEach(m=>m.dispose());this.contactShadowMaterial.dispose();this.foliageMaterial.dispose();this.composer.dispose();this.renderer.dispose();this.renderer.domElement.remove();
   }
 }
