@@ -16,17 +16,17 @@ self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET' || new URL(event.request.url).origin !== self.location.origin) return;
   event.respondWith((async () => {
     const cache = await caches.open(CACHE);
-    const cached = await cache.match(event.request);
+    const cached = await cache.match(event.request, { ignoreVary: true });
     if (cached) return cached;
     // Hashed resources used by a preceding open shell may live in the previous cache.
-    const previous = await caches.match(event.request);
+    const previous = await caches.match(event.request, { ignoreVary: true });
     if (previous && event.request.mode !== 'navigate') return previous;
     try {
       const response = await fetch(event.request);
       if (response.ok) await cache.put(event.request, response.clone());
       return response;
     } catch {
-      if (event.request.mode === 'navigate') return await cache.match(BASE+'index.html') || Response.error();
+      if (event.request.mode === 'navigate') return await cache.match(BASE+'index.html', { ignoreVary: true }) || Response.error();
       return Response.error();
     }
   })());

@@ -36,10 +36,10 @@ export default function App() {
   if(!host.current)return;
   try{const engine=new World(host.current,{onNearby:setNearby,onPosition:p=>{positionRef.current=p;audio.current.setListener(p.x,p.z);if(Math.hypot(p.x-stepDistance.current.x,p.z-stepDistance.current.z)>.8){if(gameRef.current.flags.intro)audio.current.play('step');stepDistance.current=p;}},onInteract:id=>interactRef.current(id),onEncounter:id=>interactRef.current(id),onDetection:setDetection,onStats:stats=>{setFps(Math.round(stats.fps));setQuality(stats.quality);}});world.current=engine;return()=>{engine.dispose();world.current=null;};}catch(e){setFatal(e instanceof Error?e.message:'WebGL indisponível');}
  },[]);
- useEffect(()=>{world.current?.setRegion(game.region);world.current?.setPosition(game.position.x,game.position.z);audio.current.setMode(game.region);},[game.region,loaded]);
+ useEffect(()=>{world.current?.setRegion(game.region);world.current?.setPosition(game.position.x,game.position.z);world.current?.restoreProgress(game.stage);audio.current.setMode(game.region);},[game.region,loaded]);
  useEffect(()=>{world.current?.setPaused(!started||!!tab||!!dialogue||!!game.battle);},[started,tab,dialogue,game.battle]);
  useEffect(()=>{world.current?.setBattle(game.battle);audio.current.setMode(game.battle?'battle':game.region);},[game.battle,game.region]);
- useEffect(()=>{world.current?.setObjective(step?.targetId??'');},[step?.targetId]);
+ useEffect(()=>{world.current?.setObjective(step?.targetId??'');world.current?.restoreProgress(game.stage);},[step?.targetId,game.stage]);
  useEffect(()=>{audio.current.setMuted(muted);},[muted]);
  useEffect(()=>{
   const id=setInterval(()=>{setPosition({...positionRef.current});if(started&&!tab&&!dialogue) setGame(g=>({...g,elapsedSeconds:g.elapsedSeconds+1}));},1000);

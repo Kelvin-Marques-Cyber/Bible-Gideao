@@ -124,6 +124,7 @@ export class World {
   private altarGroup?: THREE.Group;
   private interiors: {x:number;z:number;width:number;depth:number;cutaway:THREE.Group}[] = [];
   private victory = false;
+  private restoredStage = -1;
   private readonly stone = new THREE.MeshStandardMaterial({ map: stoneTexture(), roughness: .96, color: '#d6c9a2' });
   private readonly adobe = new THREE.MeshStandardMaterial({ map:adobeTexture(),color: '#e4d7ba', roughness: 1 });
   private readonly timber = new THREE.MeshStandardMaterial({ map:woodTexture(),color: '#b4a38b', roughness: .95 });
@@ -237,7 +238,7 @@ export class World {
   setRegion(region: Region) {
     this.region = region; this.obstacles = []; this.actors = []; this.flames = []; this.wind = []; this.interiors=[]; this.markers.clear(); this.water = undefined; this.altarGroup = undefined;
     this.scene.remove(this.root); this.disposeGroup(this.root); this.root = new THREE.Group(); this.scene.add(this.root);
-    this.victory = false; this.detection = 0; this.battleActive = false; this.battle.visible = false; this.encounterCooldown = 0;
+    this.victory = false; this.restoredStage = -1; this.bloom.strength=.28; this.detection = 0; this.battleActive = false; this.battle.visible = false; this.encounterCooldown = 0;
     this.buildLighting(region); this.buildTerrain();
     if (region === 'ofra') this.buildOfra(); else if (region === 'altar') this.buildAltar(); else if (region === 'harode') this.buildHarode(); else this.buildMidian();
     this.buildParticles(); this.buildMarkers(); this.batchStaticMeshes();this.applySoftwareLighting();
@@ -460,7 +461,7 @@ export class World {
     const altar = new THREE.Group(); this.altarGroup = altar; this.root.add(altar);
     this.box(0,.18,-6.5,5,.35,3.6,this.stone,altar); this.box(0,.48,-6.5,3.8,.4,2.8,this.stone,altar); this.box(0,1.1,-6.8,2.4,1.1,1.65,this.stone,altar); this.box(0,1.8,-6.8,2.8,.3,1.95,this.stone,altar);
     this.obstacles.push({x:0,z:-6.8,width:3,depth:2.3});
-    this.box(4,1.8,-6.2,.35,3.6,.4,this.timber,altar); this.box(4,2.8,-6.2,1.5,.26,.3,this.timber,altar); this.obstacles.push({x:4,z:-6.2,width:.6,depth:.6});
+    const postStem=this.box(4,1.8,-6.2,.35,3.6,.4,this.timber,altar),postCrossbar=this.box(4,2.8,-6.2,1.5,.26,.3,this.timber,altar);altar.userData.post=[postStem,postCrossbar];this.obstacles.push({x:4,z:-6.2,width:.6,depth:.6});
     for (const x of [-2.2,2.2]) this.torch(x,-5.5); this.torch(-7,4); this.torch(0,8); this.torch(-4,-9);
     this.cylinder(-5,.03,-8,1.7,1.7,.06,this.sand,20); this.box(-5,.1,-8,.9,.13,.65,this.material('#ded5b9'));
     this.npc('joas','elder',-6,5); this.npc('servos','pura',0,6); this.npc('servo-2','villager',1,6.5); this.npc('servo-3','villager',-.8,7.1);
@@ -560,7 +561,7 @@ export class World {
   setPosition(x: number,z: number) { this.player.position.set(THREE.MathUtils.clamp(x,-17.5,17.5),0,THREE.MathUtils.clamp(z,-17.5,17.5));this.cameraTarget.copy(this.player.position);this.notifyNearby();this.callbacks.onPosition?.({x:this.player.position.x,z:this.player.position.z}); }
   getPosition() { return {x:this.player.position.x,z:this.player.position.z}; }
   getNearby() { this.notifyNearby();return this.nearby; }
-  getDebugInfo() { return {region:this.region,position:this.getPosition(),fps:this.fps,nearby:this.nearby.map(p=>p.id),obstacles:this.obstacles.map(o=>({...o})),quality:this.quality,battle:this.battleActive,drawCalls:this.renderer.info.render.calls,triangles:this.renderer.info.render.triangles,software:this.softwareRenderer,pixelRatio:this.renderer.getPixelRatio(),depthOfField:this.bokeh.enabled,cinematic:this.cinematic?{...this.cinematic}:null}; }
+  getDebugInfo() { return {region:this.region,position:this.getPosition(),fps:this.fps,nearby:this.nearby.map(p=>p.id),obstacles:this.obstacles.map(o=>({...o})),quality:this.quality,battle:this.battleActive,narrativeVictory:this.victory,drawCalls:this.renderer.info.render.calls,triangles:this.renderer.info.render.triangles,software:this.softwareRenderer,pixelRatio:this.renderer.getPixelRatio(),depthOfField:this.bokeh.enabled,cinematic:this.cinematic?{...this.cinematic}:null}; }
   interact() { if(this.nearby[0])this.callbacks.onInteract?.(this.nearby[0].id); }
   setObjective(id: string) { this.objective=id; }
 
@@ -588,9 +589,58 @@ export class World {
   playCinematic(kind='intro',duration=5) {
     if(kind==='army'&&this.region==='harode'&&this.player.position.distanceTo(new THREE.Vector3(7,0,-4))<3)kind='water';
     this.cinematic={kind,progress:0,duration};
-    if(kind.includes('altar')&&this.altarGroup&&!this.altarGroup.userData.falling){this.altarGroup.userData.falling=true;for(let i=0;i<9;i++)this.rock(Math.sin(i*2.2)*1.7,-6+Math.cos(i*1.6),.25+i%3*.09,false);const post=this.cylinder(4,.2,-5.5,.15,.18,3.2,this.timber,6);post.rotation.z=Math.PI/2-.1;this.box(1.2,.5,-7.7,1.2,.8,1,this.stone);for(const actor of this.actors.filter(a=>a.id.startsWith('servo'))){actor.route=[actor.group.position.clone(),new THREE.Vector3(actor.group.position.x*.4,0,-3.8)];actor.speed=.7;}}
+    if(kind.includes('altar'))this.applyDestroyedAltar(false);
     if(kind==='army'||kind==='water'){const soldiers=this.actors.filter(a=>a.id.startsWith('israelita-'));const departing=kind==='water'?soldiers.slice(3):soldiers.slice(6);for(const soldier of departing){soldier.route=[soldier.group.position.clone(),new THREE.Vector3(-3,0,17)];soldier.speed=1.25;soldier.group.userData.departing=true;}}
-    if(['signal','sinal','victory','torches','tochas','finale','trumpets'].some(s=>kind.includes(s))&&!this.victory){this.victory=true;this.bloom.strength=.65;for(let i=0;i<35;i++){const a=i/35*6.28;this.torch(Math.cos(a)*15,Math.sin(a)*15);}this.sun.color.set('#ffbf78');this.sun.intensity=2.3;for(const actor of this.actors.filter(a=>a.kind==='guard')){actor.route=[actor.group.position.clone(),new THREE.Vector3(actor.group.position.x<0?-18:18,0,-16)];actor.speed=2.1;actor.guard=false;}}
+    if(['signal','sinal','victory','torches','tochas','finale','trumpets'].some(s=>kind.includes(s)))this.applyNarrativeVictory(false);
+  }
+
+  /** Restore the saved campaign's world state without replaying camera, dialogue or audio. */
+  restoreProgress(stage:number) {
+    if(this.restoredStage===stage)return;
+    this.restoredStage=stage;
+    if(this.region==='altar'&&stage>=4)this.applyDestroyedAltar(true);
+    if(this.region==='harode'&&stage>=7){
+      const remaining=stage>=8?3:6;
+      this.actors.filter(actor=>actor.id.startsWith('israelita-')).forEach((actor,index)=>{
+        actor.group.visible=index<remaining;actor.group.userData.departing=index>=remaining;actor.waypoint=0;actor.speed=0;
+        if(index<remaining){actor.group.position.copy(stage>=8?new THREE.Vector3(5.1+index*.45,0,-3.3-index*.8):actor.base);}
+        actor.route=[actor.group.position.clone()];
+      });
+    }
+    if(this.region==='midian'&&stage>=12)this.applyNarrativeVictory(true);
+    if(this.region==='midian'&&stage>=14){
+      this.sun.color.set('#e8bf84');this.sun.intensity=2.2;this.ambient.color.set('#cbd5d6');this.ambient.groundColor.set('#6e684c');this.ambient.intensity=1.2;
+      this.scene.background=new THREE.Color('#7f8b90');if(this.scene.fog)this.scene.fog.color.set('#819296');
+    }
+  }
+
+  private applyDestroyedAltar(instant:boolean) {
+    const altar=this.altarGroup;if(!altar)return;
+    if(!altar.userData.falling){
+      altar.userData.falling=true;
+      for(const post of (altar.userData.post??[]) as THREE.Object3D[])post.visible=false;
+      for(let i=0;i<9;i++)this.rock(Math.sin(i*2.2)*1.7,-6+Math.cos(i*1.6),.25+i%3*.09,false);
+      const post=this.cylinder(4,.2,-5.5,.15,.18,3.2,this.timber,6);post.rotation.z=Math.PI/2-.1;this.box(1.2,.5,-7.7,1.2,.8,1,this.stone);
+      for(const actor of this.actors.filter(a=>a.id.startsWith('servo'))){actor.route=[actor.group.position.clone(),new THREE.Vector3(actor.group.position.x*.4,0,-3.8)];actor.waypoint=0;actor.speed=.7;}
+      this.applySoftwareLighting();
+    }
+    if(instant){altar.rotation.z=.13;altar.position.y=-.75;}
+  }
+
+  private applyNarrativeVictory(instant:boolean) {
+    if(!this.victory){
+      this.victory=true;this.bloom.strength=.65;
+      for(let i=0;i<35;i++){const angle=i/35*Math.PI*2;this.torch(Math.cos(angle)*15,Math.sin(angle)*15);}
+      this.sun.color.set('#ffbf78');this.sun.intensity=2.3;this.applySoftwareLighting();
+    }
+    this.detection=0;this.callbacks.onDetection?.(0);
+    for(const actor of this.actors.filter(a=>a.kind==='guard')){
+      actor.guard=false;actor.waypoint=0;
+      if(actor.id==='unidade'){actor.group.position.copy(actor.base);actor.route=[actor.base.clone()];continue;}
+      const side=actor.base.x<0?-1:1;
+      if(instant)actor.group.position.set(side*(13+Math.abs(actor.base.x)*.12),0,-13.5);
+      actor.route=[actor.group.position.clone(),new THREE.Vector3(side*18,0,-16)];actor.speed=2.1;
+    }
   }
 
   private animateActor(actor: Actor,dt: number,moving: boolean,dx=0,dz=0) {
@@ -621,9 +671,9 @@ export class World {
       if(actor.group.userData.departing&&actor.group.position.z>16){actor.group.visible=false;continue;}
       if(actor.route.length>1&&!this.battleActive){const goal=actor.route[actor.waypoint],delta=goal.clone().sub(actor.group.position);if(delta.length()<.15){actor.waypoint=(actor.waypoint+1)%actor.route.length;}else {delta.normalize();dx=delta.x;dz=delta.z;actor.group.position.addScaledVector(delta,dt*actor.speed);moving=true;}}
       this.animateActor(actor,dt,moving,dx,dz);
-      if(this.region==='midian'&&actor.guard&&!this.paused&&!this.battleActive&&!this.cinematic&&canSeePlayer({x:actor.group.position.x,z:actor.group.position.z,angle:Math.atan2(dx||.1,dz||1)},this.player.position,this.obstacles)){this.detection=Math.min(1,this.detection+dt*.65);}
+      if(this.region==='midian'&&!this.victory&&actor.guard&&!this.paused&&!this.battleActive&&!this.cinematic&&canSeePlayer({x:actor.group.position.x,z:actor.group.position.z,angle:Math.atan2(dx||.1,dz||1)},this.player.position,this.obstacles)){this.detection=Math.min(1,this.detection+dt*.65);}
     }
-    if(this.region==='midian'){this.detection=Math.max(0,this.detection-dt*.16);this.callbacks.onDetection?.(this.detection);if(this.detection>=.97&&this.encounterCooldown<=0){this.detection=0;this.encounterCooldown=18;this.callbacks.onEncounter?.('unidade');}}
+    if(this.region==='midian'){this.detection=this.victory?0:Math.max(0,this.detection-dt*.16);this.callbacks.onDetection?.(this.detection);if(!this.victory&&this.detection>=.97&&this.encounterCooldown<=0){this.detection=0;this.encounterCooldown=18;this.callbacks.onEncounter?.('unidade');}}
     this.encounterCooldown=Math.max(0,this.encounterCooldown-dt);
   }
 
