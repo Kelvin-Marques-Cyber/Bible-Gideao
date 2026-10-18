@@ -51,5 +51,5 @@ export function unlockPura(state: GameState): GameState {
     equipment: { weapon: 'staff', armor: 'woven_cloak', accessory: 'sandals' },
     unlockedSkills: ['attack', 'quick', 'observe', 'cover', 'guard', 'supply', 'retreat'],
   };
-  return { ...state, party: [...state.party, pura], flags: { ...state.flags, puraJoined: true } };
+  return { ...state, inventory: { ...state.inventory, bow: (state.inventory.bow ?? 0) + 1 }, party: [...state.party, pura], flags: { ...state.flags, puraJoined: true } };
 }

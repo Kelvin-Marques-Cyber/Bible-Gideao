@@ -1,10 +1,11 @@
 import type { Item } from './types';
 
 export const ITEMS: Record<string, Item> = {
-  short_sword: { id: 'short_sword', name: 'Espada curta', description: 'Uma lâmina simples, usada para proteger os caminhos.', kind: 'equipment', slot: 'weapon', price: 22, modifiers: { attack: 3 } },
-  bronze_sword: { id: 'bronze_sword', name: 'Espada de bronze', description: 'Lâmina reforçada de um artesão de Ofra. Ataque +7.', kind: 'equipment', slot: 'weapon', price: 55, modifiers: { attack: 7 } },
-  spear: { id: 'spear', name: 'Lança de freixo', description: 'Alcance e equilíbrio. Ataque +5, velocidade +1.', kind: 'equipment', slot: 'weapon', price: 40, modifiers: { attack: 5, speed: 1 } },
-  staff: { id: 'staff', name: 'Bastão de viagem', description: 'Madeira resistente, familiar nas mãos de Purá.', kind: 'equipment', slot: 'weapon', price: 12, modifiers: { attack: 2, speed: 1 } },
+  short_sword: { id: 'short_sword', weaponType: 'sword', name: 'Espada curta', description: 'Uma lâmina simples, usada para proteger os caminhos.', kind: 'equipment', slot: 'weapon', price: 22, modifiers: { attack: 3 } },
+  bronze_sword: { id: 'bronze_sword', weaponType: 'sword', name: 'Espada de bronze', description: 'Lâmina reforçada de um artesão de Ofra. Ataque +7.', kind: 'equipment', slot: 'weapon', price: 55, modifiers: { attack: 7 } },
+  spear: { id: 'spear', weaponType: 'spear', name: 'Lança de freixo', description: 'Alcance e equilíbrio. Ataque +5, velocidade +1.', kind: 'equipment', slot: 'weapon', price: 40, modifiers: { attack: 5, speed: 1 } },
+  staff: { id: 'staff', weaponType: 'staff', name: 'Bastão de viagem', description: 'Madeira resistente, familiar nas mãos de Purá.', kind: 'equipment', slot: 'weapon', price: 12, modifiers: { attack: 2, speed: 1 } },
+  bow: { id: 'bow', name: 'Arco de campanha', description: 'Arco simples de madeira. Ataque +4, velocidade +1. Atinge aberturas contra flechas.', kind: 'equipment', slot: 'weapon', weaponType: 'bow', price: 32, modifiers: { attack: 4, speed: 1 } },
   linen_tunic: { id: 'linen_tunic', name: 'Túnica de linho', description: 'Proteção leve para a estrada. Defesa +1.', kind: 'equipment', slot: 'armor', price: 12, modifiers: { defense: 1 } },
   leather_vest: { id: 'leather_vest', name: 'Colete de couro', description: 'Couro trabalhado. Defesa +4, vida máxima +8.', kind: 'equipment', slot: 'armor', price: 42, modifiers: { defense: 4, maxHp: 8 } },
   woven_cloak: { id: 'woven_cloak', name: 'Manto tecido', description: 'Manto que protege durante as vigílias. Defesa +2, vigor +3.', kind: 'equipment', slot: 'armor', price: 30, modifiers: { defense: 2, maxVigor: 3 } },
@@ -19,4 +20,4 @@ export const ITEMS: Record<string, Item> = {
   jar: { id: 'jar', name: 'Cântaro', description: 'Oculta a luz da tocha até o sinal.', kind: 'resource', price: 0 },
 };
 
-export const SHOP_ITEMS = ['bread', 'dates', 'meal', 'bronze_sword', 'spear', 'leather_vest', 'woven_cloak', 'leather_belt', 'sandals'];
+export const SHOP_ITEMS = ['bread', 'dates', 'meal', 'bronze_sword', 'spear', 'bow', 'leather_vest', 'woven_cloak', 'leather_belt', 'sandals'];

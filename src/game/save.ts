@@ -1,6 +1,6 @@
 import { ITEMS } from './items';
-import { ACTIONS } from './battle';
-import type { BattleState, BattleUnit, GameState, Hero, Stats } from './types';
+import { ACTIONS, ENEMY_TACTICS, getEnemyIntent } from './battle';
+import type { BattleEvent, BattleState, BattleUnit, GameState, Hero, Stats, WeaponType } from './types';
 
 const DB_NAME = 'bible-gideao';
 const STORE = 'saves';
@@ -29,24 +29,73 @@ function validHero(value: unknown): value is Hero {
   return Array.isArray(value.unlockedSkills) && value.unlockedSkills.length <= 10 && value.unlockedSkills.every(skill => typeof skill === 'string' && skill in ACTIONS);
 }
 
-function validUnit(value: unknown): value is BattleUnit {
+function validBaseUnit(value: unknown): value is BattleUnit {
   if (!object(value) || typeof value.id !== 'string' || typeof value.name !== 'string' || !['ally', 'enemy'].includes(value.side as string)) return false;
   if (!['hp', 'maxHp', 'vigor', 'maxVigor', 'attack', 'defense', 'speed', 'leadership', 'morale', 'exposedTurns', 'inspiredTurns', 'coverTurns'].every(key => finite(value[key]))) return false;
   if (!finite(value.maxHp, 1) || (value.hp as number) > value.maxHp || (value.vigor as number) > (value.maxVigor as number) || typeof value.guarding !== 'boolean' || !(value.coveredBy === null || typeof value.coveredBy === 'string')) return false;
   return value.side === 'ally' ? ['gideon', 'pura'].includes(value.heroId as string) : ['raider', 'spearman', 'archer', 'captain'].includes(value.archetype as string);
 }
 
-function validBattle(value: unknown, partyIds: string[]): value is BattleState | null {
+const WEAPONS: WeaponType[] = ['sword','spear','bow','staff'];
+function validIntent(value: unknown): boolean {
+  return value === null || object(value) && ['attack','guard','rally','heavy'].includes(value.action as string) && typeof value.label === 'string' && (value.targetId === undefined || typeof value.targetId === 'string');
+}
+function validUnit(value: unknown): value is BattleUnit {
+  if (!validBaseUnit(value) || !object(value)) return false;
+  if (!WEAPONS.includes(value.weaponType as WeaponType) || !finite(value.baseAttack) || !(value.weaponId === null || typeof value.weaponId === 'string' && ITEMS[value.weaponId]?.weaponType === value.weaponType)) return false;
+  if (!Array.isArray(value.weaknesses) || !value.weaknesses.every(w=>WEAPONS.includes(w)) || new Set(value.weaknesses).size !== value.weaknesses.length) return false;
+  if (!Array.isArray(value.revealedWeaknesses) || !value.revealedWeaknesses.every(w=>(value.weaknesses as unknown[]).includes(w)) || new Set(value.revealedWeaknesses).size !== value.revealedWeaknesses.length) return false;
+  if (!integer(value.shield,0,20) || !integer(value.maxShield,0,20) || value.shield>value.maxShield || !integer(value.bp,0,5) || !(value.lastBoostRound===null || integer(value.lastBoostRound,1)) || !(value.brokenUntilRound===null || integer(value.brokenUntilRound,1)) || typeof value.priorityNextRound!=='boolean' || !validIntent(value.intent)) return false;
+  if (value.side==='enemy' && (value.maxShield<1 || value.weaknesses.length===0)) return false;
+  if (value.side==='ally' && (value.maxShield!==0 || value.shield!==0 || value.brokenUntilRound!==null)) return false;
+  if (value.brokenUntilRound!==null && value.shield!==0 || value.side==='enemy' && value.hp>0 && value.shield===0 && value.brokenUntilRound===null) return false;
+  return true;
+}
+function validEvent(value: unknown, ids: string[], round: number): boolean {
+  if(!object(value)||!integer(value.id,1)||!ids.includes(value.actorId as string)||!(value.targetId===undefined||ids.includes(value.targetId as string))||!['hit','heal','guard','tactic','result','break','recover','boost'].includes(value.kind as string))return false;
+  if(!(typeof value.action==='string' && (Object.hasOwn(ACTIONS,value.action)||['enemy','victory','defeat','recover'].includes(value.action))))return false;
+  if(value.round!==undefined&&!integer(value.round,1,round))return false;
+  if(value.weapon!==undefined&&!WEAPONS.includes(value.weapon as WeaponType)||value.revealedWeapon!==undefined&&!WEAPONS.includes(value.revealedWeapon as WeaponType))return false;
+  for(const key of ['amount','hpAfter','vigorAfter','shieldAfter','actorBpAfter','hitIndex','hitCount'])if(value[key]!==undefined&&!integer(value[key]))return false;
+  if(value.revealedWeapons!==undefined&&(!Array.isArray(value.revealedWeapons)||!value.revealedWeapons.every(w=>WEAPONS.includes(w))||new Set(value.revealedWeapons).size!==value.revealedWeapons.length))return false;
+  if(value.actorBpAfter!==undefined&&!integer(value.actorBpAfter,0,5))return false;
+  if(value.brokenUntilRound!==undefined&&value.brokenUntilRound!==null&&!integer(value.brokenUntilRound,1,round+1))return false;
+  if(value.weakness!==undefined&&typeof value.weakness!=='boolean'||value.message!==undefined&&typeof value.message!=='string')return false;
+  return true;
+}
+function validBattle(value: unknown, partyIds: string[], legacy=false): value is BattleState | null {
   if (value === null) return true;
-  if (!object(value) || !['training', 'patrol', 'ambush', 'captain'].includes(value.kind as string) || !['active', 'victory', 'defeat', 'escaped'].includes(value.status as string) || !Array.isArray(value.units) || !value.units.every(validUnit) || value.units.length > 10 || value.units.length < 2) return false;
-  const ids = value.units.map(unit => unit.id);
+  if (!object(value) || !['training', 'patrol', 'ambush', 'captain'].includes(value.kind as string) || !['active', 'victory', 'defeat', 'escaped'].includes(value.status as string) || !Array.isArray(value.units) || !value.units.every(legacy?validBaseUnit:validUnit) || value.units.length > 10 || value.units.length < 2) return false;
+  const units=value.units as BattleUnit[], ids=units.map(unit=>unit.id);
   if (new Set(ids).size !== ids.length || !Array.isArray(value.turnOrder) || value.turnOrder.length !== ids.length || new Set(value.turnOrder).size !== ids.length || !value.turnOrder.every(id => ids.includes(id))) return false;
   if (!integer(value.turnIndex, 0, ids.length - 1) || !integer(value.round, 1) || !integer(value.eventId) || typeof value.rewardsGranted !== 'boolean') return false;
-  if (!value.units.filter(unit => unit.side === 'ally').every(unit => partyIds.includes(unit.heroId!))) return false;
+  if (!units.filter(unit => unit.side === 'ally').every(unit => partyIds.includes(unit.heroId!))) return false;
   if (!Array.isArray(value.log) || value.log.length > 80 || !value.log.every(line => typeof line === 'string')) return false;
   if (!object(value.rewards) || !integer(value.rewards.xp) || !integer(value.rewards.silver) || !dictionary(value.rewards.items, (count, id) => !!ITEMS[id] && integer(count))) return false;
-  if (value.lastEvent !== null && (!object(value.lastEvent) || !integer(value.lastEvent.id) || typeof value.lastEvent.actorId !== 'string' || !['hit', 'heal', 'guard', 'tactic', 'result'].includes(value.lastEvent.kind as string))) return false;
+  if(value.lastEvent!==null&&!validEvent(value.lastEvent,ids,value.round))return false;
+  if(!legacy){
+    const round=Number(value.round);
+    if(value.combatVersion!==2||!Array.isArray(value.events)||value.events.length>200||!value.events.every(e=>validEvent(e,ids,round)))return false;
+    const events=value.events as BattleEvent[];
+    if(events.some((e,i)=>i>0&&e.id<=events[i-1].id)||events.some(e=>e.id>(value.eventId as number)))return false;
+    if(units.some(u=>u.brokenUntilRound!==null&&(u.brokenUntilRound<round||u.brokenUntilRound>Number(value.round)+1)||u.lastBoostRound!==null&&u.lastBoostRound>Number(value.round)))return false;
+  }
   return true;
+}
+function migrateLegacyBattle(game: unknown): unknown {
+  if(!object(game)||!object(game.battle)||!Array.isArray(game.party)||!game.party.every(validHero))return game;
+  const battle=game.battle;
+  if(battle.combatVersion!==undefined&&battle.combatVersion!==0)return game;
+  if(battle.events!==undefined || !(battle.units as unknown[])?.every(u=>object(u)&&!['bp','shield','maxShield','weaknesses','revealedWeaknesses','weaponType','weaponId','baseAttack','brokenUntilRound','lastBoostRound','priorityNextRound','intent'].some(key=>Object.hasOwn(u,key))))return game;
+  if(!validBattle(battle,game.party.map(h=>h.id),true))return game;
+  const next=structuredClone(game) as unknown as GameState, b=next.battle!;b.combatVersion=2;b.events=[];
+  for(const u of b.units){
+    const h=next.party.find(h=>h.id===u.heroId),t=u.archetype?ENEMY_TACTICS[u.archetype]:undefined;
+    u.baseAttack=h?.stats.attack??u.attack;u.weaponId=h?.equipment.weapon??null;u.weaponType=u.weaponId?ITEMS[u.weaponId].weaponType??'staff':u.archetype==='archer'?'bow':u.archetype==='spearman'?'spear':'sword';
+    u.weaknesses=t?[...t.weaknesses]:[];u.revealedWeaknesses=[];u.maxShield=t?.shield??0;u.shield=u.maxShield;u.brokenUntilRound=null;u.bp=u.side==='ally'?1:0;u.lastBoostRound=null;u.priorityNextRound=false;u.intent=null;
+  }
+  for(const u of b.units)u.intent=u.side==='enemy'?getEnemyIntent(next,u.id):null;
+  return next;
 }
 
 /** Reject malformed, future-version, or internally inconsistent snapshots. */
@@ -70,8 +119,10 @@ export function serializeSave(state: GameState, savedAt = Date.now()): string {
 export function deserializeSave(raw: unknown): GameState | null {
   try {
     const envelope: unknown = typeof raw === 'string' ? JSON.parse(raw) : raw;
-    if (!object(envelope) || envelope.format !== 'bible-gideao' || envelope.version !== 1 || !validateGameState(envelope.game)) return null;
-    return structuredClone(envelope.game);
+    if (!object(envelope) || envelope.format !== 'bible-gideao' || envelope.version !== 1) return null;
+    const game=migrateLegacyBattle(envelope.game);
+    if(!validateGameState(game))return null;
+    return structuredClone(game);
   } catch { return null; }
 }
 

@@ -131,7 +131,7 @@ describe('combate tático', () => {
     const next = applyBattleAction(game, 'attack', 'raider-0');
     expect(currentActor(next)?.id).toBe('gideon');
     const following = applyBattleAction(next, 'guard');
-    expect(currentActor(following)?.id).toBe('pura');
+    expect(currentActor(following)?.id).toBe('gideon'); // Defender grants next-round priority ahead of faster Purá.
     expect(following.battle!.round).toBe(2);
     expect(following.battle!.log.some(line => line.includes('Saqueador atinge'))).toBe(true);
   });
@@ -249,5 +249,108 @@ describe('combate tático', () => {
     const second = fight(startBattle(createGame(123), 'training'));
     expect(first).toEqual(second);
     expect(ACTIONS.focus.cost).toBe(6);
+  });
+});
+
+function durableBattle(kind: 'training'|'patrol'|'captain' = 'training', party=false): GameState {
+  let s=createGame(123);s.party[0].stats.maxHp=1000;s.party[0].stats.hp=1000;
+  if(party){s=unlockPura(s);s.party[1].stats.hp=1000;s.party[1].stats.maxHp=1000;}
+  s=startBattle(s,kind);
+  for(const u of s.battle!.units.filter(u=>u.side==='enemy')){u.hp=1000;u.maxHp=1000;}
+  return s;
+}
+
+describe('Ruptura e Impulso',()=>{
+  it('permite apenas armas equipadas ou presentes e aplica seu ataque real',async()=>{
+    const {getAvailableWeapons,getActionPreview}=await import('../src/game');
+    let s=createGame();expect(s.inventory.staff).toBe(1);
+    expect(getAvailableWeapons(s,'gideon').map(w=>w.type)).toEqual(['sword','staff']);
+    s=buyItem(s,'bow');s=startBattle(s,'training');
+    expect(getAvailableWeapons(s).find(w=>w.type==='bow')!.attack).toBe(17);
+    expect(getActionPreview(s,'attack','raider-0',{weapon:'spear'}).valid).toBe(false);
+    expect(applyBattleAction(s,'attack','raider-0',undefined,{weapon:'spear'})).toBe(s);
+    const next=applyBattleAction(s,'attack','raider-0',undefined,{weapon:'bow'});
+    expect(next.battle!.units[0].weaponId).toBe('bow');
+    expect(next.battle!.units[0].attack).toBe(17);
+    const joined=unlockPura(createGame());expect(joined.inventory.bow).toBe(1);
+    expect(getAvailableWeapons(joined,'pura').map(w=>w.type)).not.toContain('sword');
+  });
+  it('BP começa em 1, limita-se a 5 e não cresce na rodada após gastar',async()=>{
+    let s=durableBattle();expect(s.battle!.units[0].bp).toBe(1);
+    s=applyBattleAction(s,'attack','raider-0',undefined,{boost:1,weapon:'staff'});
+    expect(s.battle!.round).toBe(2);expect(s.battle!.units[0].bp).toBe(0);
+    expect(s.battle!.events.filter(e=>e.actorId==='gideon'&&e.kind==='hit')).toHaveLength(2);
+    s=applyBattleAction(s,'attack','raider-0',undefined,{weapon:'staff'});
+    expect(s.battle!.round).toBe(3);expect(s.battle!.units[0].bp).toBe(1);
+    for(let i=0;i<8;i++)s=applyBattleAction(s,'guard');
+    expect(s.battle!.units[0].bp).toBe(5);
+    expect(applyBattleAction(s,'attack','raider-0',undefined,{boost:4})).toBe(s);
+    expect(applyBattleAction(s,'attack','raider-0',undefined,{boost:-1})).toBe(s);
+    expect(applyBattleAction(s,'guard',undefined,undefined,{boost:1})).toBe(s);
+    expect(applyBattleAction(s,'supply','gideon','bread',{boost:1})).toBe(s);
+  });
+  it('acertos de fraqueza reduzem a postura por golpe e revelam só o tipo atingido',()=>{
+    const original=durableBattle('patrol');
+    const wrong=applyBattleAction(original,'attack','spearman-1',undefined,{weapon:'sword'});
+    const right=applyBattleAction(original,'attack','spearman-1',undefined,{weapon:'staff'});
+    const a=wrong.battle!.units.find(u=>u.id==='spearman-1')!,b=right.battle!.units.find(u=>u.id==='spearman-1')!;
+    expect(a.shield).toBe(3);expect(a.revealedWeaknesses).toEqual([]);
+    expect(b.shield).toBe(2);expect(b.revealedWeaknesses).toEqual(['staff']);
+    expect(b.hp).toBeLessThan(a.hp);
+  });
+  it('Ruptura suspende a rodada atual e a próxima e recupera toda a postura depois',()=>{
+    let s=durableBattle();
+    s=applyBattleAction(s,'attack','raider-0',undefined,{boost:1,weapon:'sword'});
+    const foe=()=>s.battle!.units.find(u=>u.id==='raider-0')!;
+    expect(foe().shield).toBe(0);expect(foe().brokenUntilRound).toBe(2);expect(s.battle!.round).toBe(2);
+    expect(s.battle!.events.filter(e=>e.kind==='hit'&&e.actorId==='raider-0')).toHaveLength(0);
+    expect(s.battle!.events.filter(e=>e.kind==='hit'&&e.actorId==='gideon').map(e=>e.shieldAfter)).toEqual([1,0]);
+    s=applyBattleAction(s,'guard');expect(s.battle!.round).toBe(3);expect(foe().shield).toBe(2);expect(foe().brokenUntilRound).toBeNull();
+    expect(s.battle!.events.some(e=>e.kind==='recover'&&e.targetId==='raider-0')).toBe(true);
+    expect(s.battle!.events.filter(e=>e.kind==='hit'&&e.actorId==='raider-0')).toHaveLength(0);
+    s=applyBattleAction(s,'attack','raider-0',undefined,{weapon:'staff'});
+    expect(s.battle!.events.some(e=>e.kind==='hit'&&e.actorId==='raider-0')).toBe(true);
+  });
+  it('dobra dano em Ruptura inclusive de uma arma que não é fraqueza',()=>{
+    const a={attack:20,morale:50},d={defense:0,guarding:false};
+    expect(calculateDamage(a,{...d,brokenUntilRound:2})).toBe(calculateDamage(a,d)*2);
+    let s=durableBattle();s.battle!.units[1].shield=0;s.battle!.units[1].brokenUntilRound=2;
+    const next=applyBattleAction(s,'attack','raider-0',undefined,{weapon:'staff'});
+    const hit=next.battle!.events.find(e=>e.actorId==='gideon'&&e.kind==='hit')!;
+    expect(hit.weakness).toBe(false);expect(hit.amount).toBeGreaterThan(20);
+  });
+  it('escala técnicas com BP sem criar golpes extras e mantém previsão sem revelar fraquezas',async()=>{
+    const {getActionPreview}=await import('../src/game');const s=durableBattle();s.battle!.units[0].bp=3;
+    const normal=getActionPreview(s,'precise','raider-0',{boost:0}),boosted=getActionPreview(s,'precise','raider-0',{boost:3});
+    expect(boosted.hits).toBe(1);expect(boosted.power).toBeGreaterThan(normal.power);expect(boosted.estimatedDamage).toBeGreaterThan(normal.estimatedDamage);
+    expect(boosted.weaknessKnown).toBe(false);expect(boosted.shieldDamage).toBe(0);
+    const learned=applyBattleAction(s,'attack','raider-0',undefined,{weapon:'sword'});
+    const preview=getActionPreview(learned,'attack','raider-0',{boost:1});expect(preview.weaknessKnown).toBe(true);expect(preview.canBreak).toBe(true);
+  });
+  it('Observação revela parcialmente e Impulso amplia reconhecimento',()=>{
+    let s=durableBattle('captain',true);s=applyBattleAction(s,'observe','captain-0');
+    expect(s.battle!.units.find(u=>u.id==='captain-0')!.revealedWeaknesses).toEqual(['spear']);
+    while(currentActor(s)?.id!=='pura')s=applyBattleAction(s,'guard');
+    s=applyBattleAction(s,'observe','captain-0',undefined,{boost:1});
+    expect(s.battle!.units.find(u=>u.id==='captain-0')!.revealedWeaknesses).toEqual(['spear','bow']);
+  });
+  it('mantém todos os eventos em ordem com snapshots antes dos inimigos e do resultado',()=>{
+    const s=applyBattleAction(durableBattle(),'attack','raider-0',undefined,{boost:1,weapon:'staff'}),events=s.battle!.events;
+    expect(events.map(e=>e.id)).toEqual([...events.map(e=>e.id)].sort((a,b)=>a-b));
+    expect(events.filter(e=>e.kind==='hit').map(e=>e.actorId)).toEqual(['gideon','gideon','raider-0']);
+    expect(events.filter(e=>e.actorId==='gideon'&&e.kind==='hit').map(e=>e.hitIndex)).toEqual([1,2]);
+    expect(events.find(e=>e.kind==='hit')!.actorBpAfter).toBe(0);
+    const win=applyBattleAction(startBattle(createGame(),'training'),'attack','raider-0',undefined,{boost:1});
+    expect(win.battle!.status).toBe('victory');expect(win.battle!.events.at(-1)!.kind).toBe('result');
+    expect(win.battle!.events.filter(e=>e.kind==='hit').length).toBeGreaterThan(0);
+    expect(win.battle!.events.filter(e=>e.kind==='hit').at(-1)!.hpAfter).toBe(0);
+  });
+  it('antecipa a intenção inimiga e a prioridade de Defender na linha do tempo',async()=>{
+    const {getTurnTimeline,getEnemyIntent}=await import('../src/game');let s=durableBattle('captain',true);
+    expect(getEnemyIntent(s,'spearman-1')!.action).toBe('guard');expect(getEnemyIntent(s,'captain-0')!.action).toBe('rally');
+    expect(getTurnTimeline(s).next.find(u=>u.id==='spearman-1')!.intent!.action).toBe('heavy');
+    s=applyBattleAction(s,'attack','captain-0');expect(currentActor(s)?.id).toBe('gideon');
+    s=applyBattleAction(s,'guard');expect(currentActor(s)?.id).toBe('gideon');
+    expect(getTurnTimeline(s).current[0].current).toBe(true);
   });
 });

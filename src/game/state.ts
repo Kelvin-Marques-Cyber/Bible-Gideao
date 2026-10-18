@@ -6,7 +6,7 @@ export function createGame(seed = 7419): GameState {
   return {
     version: 1, stage: 0, region: 'ofra', position: { x: 0, z: 7 }, activeHeroId: 'gideon',
     party: [{ id: 'gideon', name: 'Gideão', role: 'Filho de Joás · líder relutante', stats: { hp: 90, maxHp: 90, vigor: 20, maxVigor: 20, attack: 13, defense: 5, speed: 10, leadership: 8, xp: 0, level: 1, morale: 65 }, equipment: { weapon: 'short_sword', armor: 'linen_tunic', accessory: null }, unlockedSkills: ['attack', 'precise', 'guard', 'supply', 'retreat'] }],
-    inventory: { bread: 4, dates: 3, meal: 1, grain: 0 }, silver: 38,
+    inventory: { staff: 1, bread: 4, dates: 3, meal: 1, grain: 0 }, silver: 38,
     quests: {
       campaign: quest('campaign', 'A espada e a tocha', 'Acompanhe o chamado de Gideão e a libertação de Israel.', 14, 90, 0),
       grain: quest('grain', 'O pão de amanhã', 'Recupere três sacos de grãos nos campos e leve-os à moradora.', 3, 25, 18),
