@@ -7,9 +7,9 @@ Data: **17 de outubro de 2026**. Este arquivo registra evidências executadas du
 - Commit `e4a66b7b49c1bad85a53313e8edf2e78c2a25e75`: workflow de deploy passou a disparar automaticamente por push em `main`, mantendo a opção manual.
 - Validação no mesmo commit: [run 39071148217](https://github.com/Kelvin-Marques-Cyber/Bible-Gideao/actions/runs/39071148217) falhou antes da inicialização das etapas.
 - Publicação: [run 39071148250](https://github.com/Kelvin-Marques-Cyber/Bible-Gideao/actions/runs/39071148250) falhou sem passos iniciados, sem runner atribuído e sem logs disponíveis; a reexecução (tentativa 2) também falhou.
-- Na execução de validação anterior ([run 39070502531](https://github.com/Kelvin-Marques-Cyber/Bible-Gideao/actions/runs/39070502531)), a API relatou 0 ms de tempo faturável, nenhuma etapa e runner vazio. O download dos logs retornou `BlobNotFound`. A causa exata de a infraestrutura não designar um runner não está confirmada.
-- **Status:** commits publicados na `main`, automação de deploy configurada e acionada; **build em GitHub Actions, validação integrada e site público ainda não confirmados**. Não afirmar que o PWA foi publicado.
-- **Próximo passo do proprietário:** abrir os detalhes das execuções acima para ler eventuais avisos no topo do job; verificar **Settings → Actions → General**, **Settings → Pages** e eventuais restrições/bloqueios da conta no GitHub. Em caso de falha persistente antes de provisionar runner num repositório público, encaminhar os IDs dos runs ao GitHub Support. Após regularização, reexecutar o workflow de deploy e confirmar `success`.
+- Na execução de validação anterior ([run 39070502531](https://github.com/Kelvin-Marques-Cyber/Bible-Gideao/actions/runs/39070502531)), a API relatou 0 ms de tempo faturável, nenhuma etapa e runner vazio. O download dos logs retornou `BlobNotFound`. As anotações dos checks confirmaram uma restrição de conta impedindo o início dos workflows personalizados. A publicação gerenciada do Pages por branch funcionou.
+- **Status histórico:** os workflows personalizados não iniciaram. A validação integrada foi executada localmente e a publicação gerenciada por branch foi confirmada. A tabela abaixo registra a validação final e a atualização da demo.
+- **Publicação alternativa:** compilar e validar localmente, enviar somente `dist/` à branch `gh-pages` e acompanhar a publicação gerenciada do GitHub Pages. Essa origem está configurada com HTTPS, e a publicação anterior `c37d05b` foi confirmada pela API; os workflows personalizados permanecem manuais.
 
 ## Resultados registrados
 
@@ -18,18 +18,19 @@ Data: **17 de outubro de 2026**. Este arquivo registra evidências executadas du
 | Sistemas, movimento e persistência | **40 testes passaram**, em 3 arquivos | `bun run test`: 24 em `tests/systems.test.ts`, 9 em `tests/save.test.ts` e 7 em `tests/movement.test.ts`. Vitest 3.2.7; execução local concluída com código 0. |
 | Tipagem do conteúdo | **Passou** | Verificação TypeScript isolada de `src/content/campaign.ts` e `src/content/sprites.ts`, com modo estrito e sem emissão. Não substitui a tipagem da aplicação completa. |
 | Transparência do retrato e atlas | **Confirmada** | PNGs RGBA; canal alfa com valores transparentes e opacos. Retrato 971 × 1619; atlas 1254 × 1254. |
-| Inspeção da arte | **Realizada** | Um retrato e 16 quadros em quatro direções. Recortes explícitos compensam a grade gerada sem espaçamento matematicamente uniforme. A integração visual final precisa ser observada no navegador. |
+| Inspeção da arte | **Realizada** | Um retrato e 16 quadros em quatro direções. Recortes explícitos compensam a grade gerada sem espaçamento matematicamente uniforme. Renderização observada em screenshots reais durante os dois testes; evidências em `docs/screenshots/`. |
 | Conferência do roteiro | **Realizada** | Juízes 6–8 consultados em ARC; ordem dos eventos, dez servos, Joás, números do exército, Purá, sonho, ação das tochas e advertência do éfode conferidos. Ver `BIBLIA.md`. |
-| Tipagem completa | **Pendente de registro** | Registrar o resultado final de `bun run typecheck` após a integração. |
-| Build de produção | **Pendente de registro** | Registrar o resultado final de `bun run build`. |
-| E2E em navegador | **Pendente de registro** | Execução e correções de integração sob responsabilidade da etapa final. Não foram declaradas aprovadas neste registro. |
-| Campanha completa pelo navegador | **Pendente de registro** | Exige percorrer os quatro atos com controles e chegar ao epílogo. |
-| Persistência real após recarregar | **Pendente de registro** | Os testes unitários usam IndexedDB simulado. |
-| Toque e interface horizontal | **Pendente de registro** | Distinguir emulação de viewport de uso em aparelho físico. |
-| Offline em produção | **Pendente de registro** | Exige build servido, worker instalado, primeiro carregamento completo e segunda visita sem rede. |
-| Ausência de erros críticos de console | **Pendente de registro** | Inspecionar o console durante o fluxo completo. |
-| Publicação dos commits | **Pendente de confirmação** | Confirmar os hashes efetivamente presentes em `origin/main`. |
-| Deploy público | **Pendente de execução/confirmação** | Workflow manual configurado não equivale a site publicado. |
+| Tipagem completa | **Passou** | `bun run typecheck`, código 0, após integração dos sistemas e dos novos recursos visuais. |
+| Build de produção | **Passou** | `bun run build`, código 0. Vite 7.3.7; cache de produção inclui fontes, ícones e todos os recursos visuais. |
+| E2E em navegador | **2 cenários passaram** | Chromium com renderização por software, em duas execuções: jornada completa (5,1 min) e toque/offline (1,3 min). Playwright 1.64.1; ambos com código 0. |
+| Campanha completa pelo navegador | **Passou** | 14 objetivos percorridos por movimento real de teclado, comércio, equipamento, combates, quatro regiões e epílogo; sem teletransporte ou mutação de progresso pelo teste. |
+| Persistência real após recarregar | **Passou no teste mobile/offline** | Armazenamento real do Chromium, salvamento e recarregamento sem rede. A jornada final também foi recarregada: estágio 14, equipamento preservado e vitória visual restaurada. |
+| Toque e interface horizontal | **Passou em emulação** | Viewport 844 × 390, eventos reais de toque emulados via CDP e deslocamento verificado; menus sem transbordamento horizontal. Não equivale a teste físico. |
+| Offline em produção | **Passou no Chromium** | Teste E2E: cache completo instalado, rede desativada, recarregamento e retomada do cenário 3D e posição preservada. |
+| Erros de console e execução | **Nenhum nos dois cenários aprovados** | Listeners para `pageerror` e console de tipo `error`; listas vazias ao concluir as execuções. |
+| Publicação dos commits | **Confirmada até `46c9813`** | Fonte integrada aos três commits remotos de publicação, sem sobrescrita, e correção de retomada/offline enviada a `origin/main`. A versão servida informa seu commit em `version.json`. |
+| Origem de publicação no Pages | **Configurada e confirmada por API** | `build_type: workflow`, HTTPS habilitado. Nenhum deploy foi iniciado por essa configuração. |
+| Deploy público | **Pendente de execução/confirmação** | Publicação local compilada por `scripts/deploy-pages.mjs` disponível; Actions mantido manual conforme a alteração remota `17cf655`. Confirmar o endereço após a publicação de `gh-pages`. |
 
 ## O que os 40 testes verificam
 

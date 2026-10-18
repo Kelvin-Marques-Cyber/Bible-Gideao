@@ -2,7 +2,11 @@
 
 **A Espada e a Tocha** é uma demonstração de RPG de exploração para navegador, inspirada em Juízes 6–8 e concebida para smartphones na horizontal. Gideão caminha por cenários tridimensionais com personagens em sprites; a campanha alterna exploração, conversas, preparação do grupo, furtividade, combates por turnos e cenas na própria engine.
 
-São quatro regiões compactas, com uma campanha de 14 objetivos. O projeto busca uma sessão curta e completa; o tempo de conclusão e a meta de 30 FPS em celulares modestos ainda precisam de medição em aparelhos físicos. O [registro de validação](docs/VALIDACAO.md) distingue verificações executadas de pendências.
+São quatro regiões compactas, com uma campanha de 14 objetivos. O percurso completo e a retomada offline passaram nos testes de navegador; os 40 testes unitários também passaram. O projeto busca uma sessão curta e completa; o tempo de conclusão e a meta de 30 FPS em celulares modestos ainda precisam de medição em aparelhos físicos. O [registro de validação](docs/VALIDACAO.md) distingue verificações executadas de pendências.
+
+[**Jogar a demo e instalar a PWA**](https://kelvin-marques-cyber.github.io/Bible-Gideao/) · [Commits na main](https://github.com/Kelvin-Marques-Cyber/Bible-Gideao/commits/main/)
+
+![Ofra em uma sessão mobile offline](docs/screenshots/mobile-offline.png)
 
 ## Executar
 
@@ -97,7 +101,7 @@ bunx playwright install chromium
 bun run test:e2e
 ```
 
-Em Linux de integração contínua, a instalação pode precisar de `bunx playwright install --with-deps chromium`. O workflow de validação executa unidade, build e E2E e preserva os resultados do navegador como artefato. Veja [docs/VALIDACAO.md](docs/VALIDACAO.md) para a lista de cenários efetivamente executados e as limitações. Um arquivo de teste ou workflow configurado, por si só, não comprova sucesso.
+Em Linux de integração contínua, a instalação pode precisar de `bunx playwright install --with-deps chromium`. O workflow de validação executa unidade, build e E2E e preserva os resultados do navegador como artefato. Veja [docs/VALIDACAO.md](docs/VALIDACAO.md) para a lista de cenários efetivamente executados e as limitações. Os dois cenários passaram localmente: campanha completa (5,1 min de navegação automatizada) e toque/offline (1,3 min). Esse tempo automatizado não estima o tempo humano de leitura e exploração. Ative o rastreio opcional com `PLAYWRIGHT_TRACE=1 bun run test:e2e`.
 
 ## Publicar
 

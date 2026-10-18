@@ -8,7 +8,7 @@ async function dialogues(page:Page){
  for(let i=0;i<15;i++){const button=page.locator('.dialogue-bottom button');if(!await button.count())break;await button.click();await page.waitForTimeout(130);}
 }
 function path(start:P,end:P,obstacles:any[]):P[]{
- const size=.7, n=51,at=(x:number,z:number)=>`${x},${z}`,cell=(p:P)=>({x:Math.round((p.x+17.5)/size),z:Math.round((p.z+17.5)/size)}),pos=(p:P)=>({x:p.x*size-17.5,z:p.z*size-17.5});
+ const size=.35, n=101,at=(x:number,z:number)=>`${x},${z}`,cell=(p:P)=>({x:Math.round((p.x+17.5)/size),z:Math.round((p.z+17.5)/size)}),pos=(p:P)=>({x:p.x*size-17.5,z:p.z*size-17.5});
  const first=cell(start),queue=[first],previous=new Map<string,P|null>([[at(first.x,first.z),null]]);let finish:P|undefined;
  const blocked=(p:P)=>{const v=pos(p);return obstacles.some(o=>Math.abs(v.x-o.x)<o.width/2+.37&&Math.abs(v.z-o.z)<o.depth/2+.37);};
  for(let i=0;i<queue.length;i++){const p=queue[i],v=pos(p);if(Math.hypot(v.x-end.x,v.z-end.z)<1.6){finish=p;break;}for(const d of [{x:1,z:0},{x:-1,z:0},{x:0,z:1},{x:0,z:-1}]){const q={x:p.x+d.x,z:p.z+d.z},key=at(q.x,q.z);if(q.x<0||q.z<0||q.x>=n||q.z>=n||previous.has(key)||blocked(q))continue;previous.set(key,p);queue.push(q);}}
@@ -36,7 +36,10 @@ async function walkTo(page:Page,end:P){
   const state=await read(page);if(state.battle){await dialogues(page);await fight(page);continue;}
   if(await page.locator('.dialogue-box').count()){await dialogues(page);continue;}
   const info=await world(page),p=info.position;if(Math.hypot(p.x-end.x,p.z-end.z)<2.15)return;
-  const route=path(p,end,info.obstacles),next=route[Math.min(3,route.length-1)]??end,dx=next.x-p.x,dz=next.z-p.z;
+  const obstacles=info.region==='ofra'?[...info.obstacles,{x:-5.9,z:-3,width:4.3,depth:3.5}]:info.obstacles;
+  const route=path(p,end,obstacles);let next=route[0]??end;
+  for(const point of route.slice(1,8)){let clear=true;const distance=Math.hypot(point.x-p.x,point.z-p.z);for(let t=0;t<=distance;t+=.12){const f=distance?t/distance:0,x=p.x+(point.x-p.x)*f,z=p.z+(point.z-p.z)*f;if(obstacles.some((o:any)=>Math.abs(x-o.x)<o.width/2+.32&&Math.abs(z-o.z)<o.depth/2+.32)){clear=false;break;}}if(!clear)break;next=point;}
+  const dx=next.x-p.x,dz=next.z-p.z;
   // Invert the camera-aligned movement basis. Tests use real key input only.
   const sx=.852*dx-.523*dz,sy=.523*dx+.852*dz,len=Math.hypot(sx,sy),keys:string[]=[];
   if(sx/len>.37)keys.push('d');if(sx/len<-.37)keys.push('a');if(sy/len>.37)keys.push('s');if(sy/len<-.37)keys.push('w');
@@ -48,7 +51,7 @@ async function walkTo(page:Page,end:P){
 }
 
 test('complete four acts through exploration, combat, equipment and saved progress',async({page})=>{
- test.setTimeout(900000);const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
+ test.setTimeout(900000);const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',message=>{if(message.type()==='error')errors.push(message.text());});
  await page.goto('/');await page.getByRole('button',{name:'Iniciar jornada',exact:true}).click();await dialogues(page);await page.waitForTimeout(12500);
  const initial=await world(page);await page.keyboard.down('d');await page.waitForTimeout(1800);await page.keyboard.up('d');expect(Math.hypot((await world(page)).position.x-initial.position.x,(await world(page)).position.z-initial.position.z)).toBeGreaterThan(.5);
  for(let stage=0;stage<14;stage++){
@@ -65,15 +68,15 @@ test('complete four acts through exploration, combat, equipment and saved progre
   if([2,5,8,11,13].includes(stage))await page.screenshot({path:`test-results/act-${stage}.png`});
  }
  const completed=await read(page);expect(completed.flags.completed).toBe(true);expect(completed.quests.campaign.status).toBe('completed');expect(completed.party.length).toBe(2);expect(completed.party[0].stats.level).toBeGreaterThan(1);
- await page.getByRole('button',{name:'Menu',exact:true}).click();await page.getByRole('button',{name:/Salvar jornada/}).click();await expect(page.getByRole('status')).toContainText('salva');await page.reload();await page.getByRole('button',{name:'Retomar jornada',exact:true}).click();expect((await read(page)).stage).toBe(14);expect((await read(page)).party[0].equipment.weapon).toBe('spear');expect(errors).toEqual([]);
+ await page.getByRole('button',{name:'Menu',exact:true}).click();await page.getByRole('button',{name:/Salvar jornada/}).click();await expect(page.getByRole('status')).toContainText('salva');await page.reload();await page.getByRole('button',{name:'Retomar jornada',exact:true}).click();expect((await read(page)).stage).toBe(14);expect((await world(page)).narrativeVictory).toBe(true);expect((await read(page)).party[0].equipment.weapon).toBe('spear');expect(errors).toEqual([]);
 });
 
 test('touch movement, responsive menus, install manifest and offline recovery',async({browser})=>{
- test.setTimeout(180000);const context=await browser.newContext({viewport:{width:844,height:390},hasTouch:true,isMobile:true,deviceScaleFactor:1});const page=await context.newPage();const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
+ test.setTimeout(180000);const context=await browser.newContext({viewport:{width:844,height:390},hasTouch:true,isMobile:true,deviceScaleFactor:1});const page=await context.newPage();const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',message=>{if(message.type()==='error')errors.push(message.text());});
  await page.goto('/');await page.getByRole('button',{name:'Iniciar jornada',exact:true}).click();await dialogues(page);await page.waitForTimeout(12500);
- const before=(await world(page)).position,joy=page.getByLabel('Controle de movimento'),box=(await joy.boundingBox())!;await page.mouse.move(box.x+box.width/2,box.y+box.height/2);await page.mouse.down();await page.mouse.move(box.x+box.width/2+35,box.y+box.height/2);await page.waitForTimeout(950);await page.mouse.up();const after=(await world(page)).position;expect(Math.hypot(after.x-before.x,after.z-before.z)).toBeGreaterThan(.5);
+ const before=(await world(page)).position,joy=page.getByLabel('Controle de movimento'),box=(await joy.boundingBox())!;const touch=await context.newCDPSession(page);await touch.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:box.x+box.width/2,y:box.y+box.height/2}]});await touch.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:box.x+box.width/2+35,y:box.y+box.height/2}]});await page.waitForTimeout(1500);await touch.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});await touch.detach();const after=(await world(page)).position;expect(Math.hypot(after.x-before.x,after.z-before.z)).toBeGreaterThan(.5);
  await page.getByRole('button',{name:'Inventário',exact:true}).first().click();await expect(page.getByRole('heading',{name:'Inventário',exact:true})).toBeVisible();expect(await page.locator('body').evaluate(el=>el.scrollWidth<=innerWidth)).toBe(true);await page.getByRole('button',{name:'Fechar menu'}).click();
  await page.getByRole('button',{name:'Menu',exact:true}).click();await page.getByRole('button',{name:/Salvar jornada/}).click();await expect(page.getByRole('status')).toContainText('salva');
  await page.evaluate(()=>navigator.serviceWorker.ready);await expect.poll(()=>page.evaluate(()=>navigator.serviceWorker.controller!==null)).toBe(true);const manifest=await page.request.get('/manifest.webmanifest');expect((await manifest.json()).display).toBe('standalone');
- await context.setOffline(true);await page.reload();await page.getByRole('button',{name:'Retomar jornada',exact:true}).click();await expect(page.getByTestId('world-canvas')).toBeVisible();expect((await read(page)).position.x).toBeCloseTo(after.x,0);await page.screenshot({path:'test-results/mobile-offline.png'});expect(errors).toEqual([]);await context.close();
+ console.log('Offline cache',await page.evaluate(async()=>{const names=await caches.keys();return Promise.all(names.map(async name=>({name,assets:(await(await caches.open(name)).keys()).map(request=>new URL(request.url).pathname)})));}));await context.setOffline(true);await page.reload();await page.getByRole('button',{name:'Retomar jornada',exact:true}).click();await expect(page.getByTestId('world-canvas')).toBeVisible();expect((await read(page)).position.x).toBeCloseTo(after.x,0);await page.screenshot({path:'test-results/mobile-offline.png'});expect(errors).toEqual([]);await context.close();
 });
