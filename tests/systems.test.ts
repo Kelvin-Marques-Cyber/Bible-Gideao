@@ -354,3 +354,33 @@ describe('Ruptura e Impulso',()=>{
     expect(getTurnTimeline(s).current[0].current).toBe(true);
   });
 });
+
+it('suporte e observação não exigem arma: um grupo desarmado ainda pode se defender, usar pão e recuar',async()=>{
+  const {getActionPreview,getAvailableWeapons,serializeSave,deserializeSave}=await import('../src/game');
+  let game=createGame(123);game.party[0].equipment.weapon=null;game.inventory.staff=0;game.party[0].stats.hp=40;
+  game=startBattle(game,'training');const restored=deserializeSave(serializeSave(game))!;
+  expect(restored).not.toBeNull();expect(getAvailableWeapons(restored)).toEqual([]);
+  expect(getActionPreview(restored,'guard','gideon',{weapon:'sword'}).valid).toBe(true);
+  expect(getActionPreview(restored,'supply','gideon',{weapon:'bow'}).valid).toBe(true);
+  expect(getActionPreview(restored,'retreat',undefined,{weapon:'spear'}).valid).toBe(true);
+  expect(getActionPreview(restored,'attack','raider-0',{weapon:'sword'}).valid).toBe(false);
+  const defended=applyBattleAction(restored,'guard','gideon',undefined,{weapon:'sword'});expect(defended).not.toBe(restored);
+  const supplied=applyBattleAction(restored,'supply','gideon','bread',{weapon:'bow'});expect(supplied.inventory.bread).toBe(restored.inventory.bread-1);expect(supplied.party[0].stats.hp).toBeGreaterThan(restored.party[0].stats.hp);
+  expect(applyBattleAction(restored,'retreat',undefined,undefined,{weapon:'spear'})).not.toBe(restored);
+  const observer=unlockPura(createGame());observer.party[1].equipment.weapon=null;observer.inventory.staff=0;observer.inventory.bow=0;
+  const reconnaissance=startBattle(observer,'captain');
+  expect(getActionPreview(reconnaissance,'observe','captain-0',{weapon:'bow'}).valid).toBe(true);
+  expect(applyBattleAction(reconnaissance,'observe','captain-0',undefined,{weapon:'bow'}).battle!.units.find(u=>u.id==='captain-0')!.revealedWeaknesses).toEqual(['spear']);
+});
+
+it('o capitão suporta cinco acertos fracos de um grupo evoluído para abrir uma janela real de Quebra',()=>{
+  let s=unlockPura(grantXp(createGame(123),200));s=equipItem(addItem(s,'spear'),'gideon','spear');s=restParty(s);s=startBattle(s,'captain');
+  expect(s.battle!.units.find(u=>u.id==='captain-0')!.maxHp).toBe(185);
+  s.battle!.units.find(u=>u.id==='gideon')!.bp=3;
+  // Purá's real spare bow opens the fifth-shield sequence; Gideão spends the banked BP.
+  s=applyBattleAction(s,'attack','captain-0',undefined,{weapon:'bow'});
+  s=applyBattleAction(s,'attack','captain-0',undefined,{weapon:'spear',boost:3});
+  const captain=s.battle!.units.find(u=>u.id==='captain-0')!;
+  expect(captain.hp).toBeGreaterThan(0);expect(captain.shield).toBe(0);expect(captain.brokenUntilRound).not.toBeNull();
+  expect(s.battle!.events.some(e=>e.kind==='break'&&e.targetId==='captain-0')).toBe(true);
+});

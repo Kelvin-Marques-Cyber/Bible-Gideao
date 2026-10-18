@@ -26,7 +26,7 @@ const ENEMIES = {
   raider: { name: 'Saqueador', hp: 41, attack: 13, defense: 3, speed: 7, weaponType: 'sword' as WeaponType },
   spearman: { name: 'Lanceiro', hp: 53, attack: 14, defense: 6, speed: 6, weaponType: 'spear' as WeaponType },
   archer: { name: 'Arqueiro', hp: 34, attack: 12, defense: 2, speed: 9, weaponType: 'bow' as WeaponType },
-  captain: { name: 'Líder da patrulha', hp: 105, attack: 19, defense: 7, speed: 8, weaponType: 'sword' as WeaponType },
+  captain: { name: 'Líder da patrulha', hp: 185, attack: 19, defense: 7, speed: 8, weaponType: 'sword' as WeaponType },
 };
 export function isBroken(unit: BattleUnit, round?: number): boolean { return unit.brokenUntilRound !== null && (round === undefined || round <= unit.brokenUntilRound); }
 const stateBattle = (state: GameState | BattleState | null) => state && 'battle' in state ? state.battle : state;
@@ -91,7 +91,7 @@ export function getActionPreview(state:GameState,action:BattleAction,targetId?:s
   else if(!Number.isInteger(boost)||boost<0||boost>MAX_BOOST||boost>actor.bp)reason='Ímpeto insuficiente.';
   else if(boost>0&&!meta.supportsBoost)reason='Esta ação não usa Ímpeto.';
   const choice=getAvailableWeapons(state,actor?.id).find(w=>w.type===weapon);
-  if(!reason&&options.weapon&&!choice)reason='A arma não está equipada nem disponível no inventário.';
+  if(!reason&&options.weapon&&!choice&&['attack','precise','focus','quick'].includes(action))reason='A arma não está equipada nem disponível no inventário.';
   if(!reason&&meta.target==='enemy'&&(!target||target.side!=='enemy'||target.hp<=0))reason='Selecione um inimigo.';
   if(!reason&&meta.target==='ally'&&(!target||target.side!=='ally'||target.hp<=0||action==='cover'&&target.id===actor?.id))reason='Selecione um aliado disponível.';
   const known=!!target?.revealedWeaknesses.includes(weapon),damaging=['attack','precise','focus','quick'].includes(action),shieldDamage=damaging&&known&&!isBroken(target!,state.battle!.round)?Math.min(target!.shield,p.hits):0;

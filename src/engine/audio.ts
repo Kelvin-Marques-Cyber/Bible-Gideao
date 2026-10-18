@@ -41,7 +41,12 @@ export class GameAudio {
     if(this.mode==='midian'&&this.beat%13===4)this.noise(.22,.012,700);
     this.beat++;
   }
-  play(kind: 'step'|'click'|'attack'|'guard'|'victory'|'horn'|'jar'|'level'|'danger') {
+  play(kind: 'step'|'click'|'attack'|'guard'|'victory'|'horn'|'jar'|'level'|'danger'|'break'|'boost'|'weak'|'recover'|'projectile'|'heal') {
+    if (kind === 'break') { this.noise(.35,.18,6000); [164.81,220,329.63].forEach((f,i)=>setTimeout(()=>this.tone(f,.42,.05,'triangle',i*.3-.3),i*45)); }
+    if (kind === 'weak') { this.noise(.12,.12,4800);this.tone(587.33,.15,.055,'triangle'); }
+    if (kind === 'boost') [220,293.66,440].forEach((f,i)=>setTimeout(()=>this.tone(f,.2,.04,'triangle'),i*55));
+    if (kind === 'recover' || kind === 'heal') [293.66,440].forEach((f,i)=>setTimeout(()=>this.tone(f,.35,.035,'sine'),i*95));
+    if (kind === 'projectile') {this.noise(.09,.06,5500);this.tone(180,.07,.025,'triangle');}
     if (kind === 'step') this.noise(.08, .025, 600);
     if (kind === 'click') this.tone(440, .06, .025, 'triangle');
     if (kind === 'attack') { this.noise(.15, .15, 4000); this.tone(110, .12, .07, 'triangle'); }
