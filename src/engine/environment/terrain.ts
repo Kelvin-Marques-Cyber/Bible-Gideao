@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { groundTexture, random } from '../art';
 import { addBox, irregularBox, stoneBlock, type EnvironmentContext } from './context';
+import { createCalmGroundTexture } from './materials';
 
 const smooth=(a:number,b:number,value:number)=>{const t=THREE.MathUtils.clamp((value-a)/(b-a),0,1);return t*t*(3-2*t);};
 function terrace(x:number,z:number,cx:number,cz:number,rx:number,rz:number,height:number){const d=Math.max(Math.abs(x-cx)/rx,Math.abs(z-cz)/rz);return height*(1-smooth(.72,1.15,d));}
@@ -10,7 +11,10 @@ export function ofraGroundHeight(x:number,z:number){return .018*Math.sin(x*.42)*
 export function buildOfraLandscape(ctx:EnvironmentContext){
   const texture=groundTexture();texture.repeat.set(6,6);texture.anisotropy=4;texture.magFilter=THREE.LinearFilter;const geometry=new THREE.PlaneGeometry(100,100,84,84),position=geometry.attributes.position,colors=new Float32Array(position.count*3);
   for(let i=0;i<position.count;i++){const x=position.getX(i),z=-position.getY(i),distance=Math.max(Math.abs(x),Math.abs(z)),hills=smooth(18,36,distance)*(Math.sin(x*.12+1)*Math.cos(z*.11)*1.3+Math.sin(x*.08-z*.06)*1.8+.6);position.setZ(i,ofraGroundHeight(x,z)+hills);const moisture=Math.sin(x*.2+z*.04)*Math.cos(z*.23),color=new THREE.Color().setHSL(.15+moisture*.014,.14,.77+moisture*.065);colors[i*3]=color.r;colors[i*3+1]=color.g;colors[i*3+2]=color.b;}
-  geometry.setAttribute('color',new THREE.BufferAttribute(colors,3));geometry.computeVertexNormals();const material=new THREE.MeshStandardMaterial({map:texture,color:'#dfd4b2',vertexColors:true,roughness:1});const terrain=new THREE.Mesh(geometry,material);terrain.rotation.x=-Math.PI/2;terrain.position.y=-.005;terrain.receiveShadow=true;terrain.name='Ofra agricultural terraces';ctx.root.add(terrain);
+  geometry.setAttribute('color',new THREE.BufferAttribute(colors,3));geometry.computeVertexNormals();const material=ctx.surface?.('dirt','#f3eee2')??new THREE.MeshStandardMaterial({color:'#dfd4b2',roughness:1});
+  if(!material.map){material.map=texture;ctx.ownTexture?.(texture);}else{texture.dispose();if(!material.userData.tileRepeat){material.map=material.map.clone();material.map.needsUpdate=true;ctx.ownTexture?.(material.map);}}
+  if(!material.userData.calmSoil){material.map=createCalmGroundTexture(material.map);ctx.ownTexture?.(material.map);material.userData.calmSoil=true;}
+  material.vertexColors=true;material.userData.tileRepeat=8;material.map.repeat.set(8,8);const terrain=new THREE.Mesh(geometry,material);terrain.rotation.x=-Math.PI/2;terrain.position.y=-.005;terrain.receiveShadow=true;terrain.name='Ofra agricultural terraces';ctx.root.add(terrain);
   const rnd=random(110),ridgeColors=['#a4aa96','#8e998a','#bac0a9'];
   for(let layer=0;layer<3;layer++){
     const vertices:number[]=[],indices:number[]=[],n=44,z=-29-layer*12;
@@ -35,6 +39,21 @@ export function buildComposedPath(ctx:EnvironmentContext,points:{x:number;z:numb
     if(i<segments){const a=i*2;indices.push(a,a+1,a+2,a+1,a+3,a+2);}
   }
   const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.Float32BufferAttribute(vertices,3));geometry.setAttribute('uv',new THREE.Float32BufferAttribute(uvs,2));geometry.setIndex(indices);geometry.computeVertexNormals();const mesh=new THREE.Mesh(geometry,material);mesh.receiveShadow=true;ctx.root.add(mesh);return mesh;
+}
+
+/** Worn local limestone paving marks the village's shared space around the well. */
+export function buildVillagePaving(ctx:EnvironmentContext){
+  const rnd=random(319),positions:{x:number;z:number;w:number;d:number;angle:number}[]=[];
+  for(let row=0;row<10;row++)for(let col=0;col<18;col++){
+    const x=-5.3+col*.59+(row%2)*.24+(rnd()-.5)*.08,z=-1.8+row*.49+(rnd()-.5)*.07;
+    const radius=Math.pow((x+.25)/5,2)+Math.pow((z-.25)/2.5,2);
+    // The ragged outer courses blend into the street; keep the well and house thresholds clear.
+    if(radius>1||(radius>.68&&rnd()<.23)||Math.hypot(x+2.7,z+1)<.99||(x<-3.5&&z<-.75))continue;
+    positions.push({x,z,w:.49+rnd()*.09,d:.37+rnd()*.07,angle:(rnd()-.5)*.12});
+  }
+  const geometry=irregularBox(1,.035,1,519,.018),material=ctx.surface?.('sand','#d9d2bc')??ctx.materials.rock.clone();material.roughness=1;
+  const pavers=new THREE.InstancedMesh(geometry,material,positions.length),dummy=new THREE.Object3D();pavers.name='Worn limestone village square';pavers.receiveShadow=true;
+  positions.forEach((p,i)=>{dummy.position.set(p.x,ctx.groundHeight(p.x,p.z)+.019,p.z);dummy.rotation.y=p.angle;dummy.scale.set(p.w,.55+rnd()*.4,p.d);dummy.updateMatrix();pavers.setMatrixAt(i,dummy.matrix);pavers.setColorAt(i,new THREE.Color().setHSL(.12+rnd()*.02,.1,.71+rnd()*.17));});ctx.root.add(pavers);return pavers;
 }
 
 export function buildGrainSack(ctx:EnvironmentContext,x:number,z:number){const group=new THREE.Group();group.position.set(x,ctx.groundHeight(x,z),z);ctx.root.add(group);const points=[new THREE.Vector2(.17,0),new THREE.Vector2(.29,.08),new THREE.Vector2(.31,.33),new THREE.Vector2(.23,.53),new THREE.Vector2(.09,.64),new THREE.Vector2(.13,.7)];const body=new THREE.Mesh(new THREE.LatheGeometry(points,10),ctx.materials.color('#baa67b'));body.castShadow=true;body.receiveShadow=true;group.add(body);const tie=new THREE.Mesh(new THREE.TorusGeometry(.1,.018,4,10),ctx.materials.color('#736647'));tie.rotation.x=Math.PI/2;tie.position.y=.61;group.add(tie);for(let i=0;i<4;i++)addBox(group,-.01,.08+i*.12,.299,.014,.06,.01,ctx.materials.color('#d4c399'));return group;}

@@ -5,7 +5,7 @@ import { addBox, addCylinder, branch, cloth, irregularBox, stoneBlock, type Envi
 export interface HouseOptions {x:number;z:number;width?:number;depth?:number;height?:number;barn?:boolean;enterable?:boolean;}
 
 export function buildJar(ctx:EnvironmentContext,x:number,z:number,scale=.4,parent:THREE.Object3D=ctx.root,y=0){
-  const material=ctx.materials.color('#ac7855'),points=[new THREE.Vector2(.12,0),new THREE.Vector2(.24,.06),new THREE.Vector2(.34,.3),new THREE.Vector2(.32,.55),new THREE.Vector2(.19,.73),new THREE.Vector2(.15,.82),new THREE.Vector2(.2,.86)];
+  const material=ctx.surface?.('terracotta','#ddd0b8')??ctx.materials.color('#ac7855'),points=[new THREE.Vector2(.12,0),new THREE.Vector2(.24,.06),new THREE.Vector2(.34,.3),new THREE.Vector2(.32,.55),new THREE.Vector2(.19,.73),new THREE.Vector2(.15,.82),new THREE.Vector2(.2,.86)];
   const geometry=new THREE.LatheGeometry(points,12);geometry.scale(scale*1.8,scale*1.8,scale*1.8);const jar=new THREE.Mesh(geometry,material);jar.position.set(x,y,z);jar.castShadow=true;jar.receiveShadow=true;parent.add(jar);
   const lip=new THREE.Mesh(new THREE.TorusGeometry(scale*.35,scale*.045,4,12),ctx.materials.color('#c39468'));lip.rotation.x=Math.PI/2;lip.position.set(x,y+scale*1.55,z);parent.add(lip);
   const inside=new THREE.Mesh(new THREE.CircleGeometry(scale*.27,12),ctx.materials.color('#453a2a'));inside.rotation.x=-Math.PI/2;inside.position.set(x,y+scale*1.47,z);parent.add(inside);
@@ -60,10 +60,10 @@ export function buildHouse(ctx:EnvironmentContext,options:HouseOptions){
   // A raised storage mass on the back roof breaks the repeated rectangular silhouette.
   if(!barn&&rnd()>.32){const mass=plasterPanel(enterable?cutaway:house,w*.37,.53,d*.45,315+x,m.adobe);mass.position.set(-w*.19,h+.3,-d*.2);addBox(enterable?cutaway:house,-w*.19,h+.6,-d*.2,w*.4,.1,d*.48,m.roof);}
   if(!barn){
-    const awningMat=m.color('#b49a6e');awningMat.side=THREE.DoubleSide;const awning=cloth(house,1.75,1.06,awningMat,x);awning.position.set(.2,2.02,d/2+.64);awning.rotation.z=.025;
+    const awningMat=ctx.surface?.('linen','#d3c0a0')??m.color('#b49a6e');awningMat.side=THREE.DoubleSide;const awning=cloth(house,1.75,1.06,awningMat,x);awning.position.set(.2,2.02,d/2+.64);awning.rotation.z=.025;
     for(const px of[-.74,1.14]){const post=addCylinder(house,px,.93,d/2+1.1,.035,.055,1.86,m.wood,5);post.rotation.z=px*.025;}
     buildJar(ctx,-w/2+.1,d/2+.45,.37,house);buildJar(ctx,w/2+.3,d/2-.3,.27,house);buildBasket(ctx,w/2-.4,d/2+.55,.36,house);
-    const hangingCloth=cloth(house,.74,.9,m.color('#998675'),2);hangingCloth.rotation.set(0,.02,.03);hangingCloth.position.set(-w*.32,h-.24,d/2+.3);ctx.wind.push({object:hangingCloth,base:.03,phase:x,strength:.025});
+    const hangingCloth=cloth(house,.74,.9,ctx.surface?.('linen','#b4a899')??m.color('#998675'),2);hangingCloth.rotation.set(0,.02,.03);hangingCloth.position.set(-w*.32,h-.24,d/2+.3);ctx.wind.push({object:hangingCloth,base:.03,phase:x,strength:.025});
   }else{
     for(let i=0;i<5;i++){addBox(front,doorX-.45+i*.21,.87,d/2+.06,.18,1.64,.08,m.wood);}
     const brace=addBox(front,.2,.92,d/2+.13,1.05,.07,.06,m.wood);brace.rotation.z=.65;
@@ -78,7 +78,7 @@ export function buildHouse(ctx:EnvironmentContext,options:HouseOptions){
 }
 
 export function buildWell(ctx:EnvironmentContext,x:number,z:number){const group=new THREE.Group();group.position.set(x,0,z);ctx.root.add(group);for(let course=0;course<3;course++)for(let i=0;i<12;i++){const a=(i+(course%2)*.5)/12*Math.PI*2,stone=stoneBlock(group,Math.cos(a)*.7,.12+course*.21,Math.sin(a)*.7,.36,.19,.3,ctx.materials.stone,course*31+i);stone.rotation.y=-a;}
-  const water=new THREE.Mesh(new THREE.CircleGeometry(.55,32),new THREE.MeshStandardMaterial({color:'#577775',metalness:.18,roughness:.23,transparent:true,opacity:.85}));water.rotation.x=-Math.PI/2;water.position.y=.13;group.add(water);
+  const waterMaterial=ctx.surface?.('water','#c5d4ce')??new THREE.MeshStandardMaterial({color:'#577775'});waterMaterial.metalness=.18;waterMaterial.roughness=.23;waterMaterial.transparent=true;waterMaterial.opacity=.85;const water=new THREE.Mesh(new THREE.CircleGeometry(.55,32),waterMaterial);water.rotation.x=-Math.PI/2;water.position.y=.13;group.add(water);
   for(const sx of[-.85,.85])branch(group,[new THREE.Vector3(sx,0,0),new THREE.Vector3(sx-.03,1.1,.04),new THREE.Vector3(sx+.02,2.26,0)],.065,ctx.materials.wood,4);addBox(group,0,2.22,0,2,.16,.18,ctx.materials.wood);
   const pulley=new THREE.Mesh(new THREE.TorusGeometry(.2,.045,5,16),ctx.materials.wood);pulley.position.set(0,2.08,.01);group.add(pulley);addCylinder(group,0,1.4,0,.013,.013,1.2,ctx.materials.color('#b5a17b'),4);buildBasket(ctx,0,0,.22,group,.69);buildJar(ctx,-1.05,.25,.3,group);return group;}
 
@@ -90,10 +90,10 @@ export function buildWinepress(ctx:EnvironmentContext,x:number,z:number){const g
 
 export function buildMarket(ctx:EnvironmentContext,x:number,z:number){const group=new THREE.Group();group.position.set(x,ctx.groundHeight(x,z),z);ctx.root.add(group);const m=ctx.materials;
   for(const xx of[-1.5,1.5])for(const zz of[-.75,.75])branch(group,[new THREE.Vector3(xx,0,zz),new THREE.Vector3(xx-.03,1.25,zz+.025),new THREE.Vector3(xx+.04,2.52,zz)],.045,m.wood,4);
-  for(const zz of[-.78,.78])addBox(group,0,2.47,zz,3.3,.1,.1,m.wood);const fabric=m.color('#b69b6c');fabric.side=THREE.DoubleSide;const canopy=cloth(group,3.35,1.95,fabric,7);canopy.position.y=2.49;canopy.rotation.z=.02;ctx.wind.push({object:canopy,base:.02,phase:x,strength:.008});
+  for(const zz of[-.78,.78])addBox(group,0,2.47,zz,3.3,.1,.1,m.wood);const fabric=ctx.surface?.('linen','#d7c29d')??m.color('#b69b6c');fabric.side=THREE.DoubleSide;const canopy=cloth(group,3.35,1.95,fabric,7);canopy.position.y=2.49;canopy.rotation.z=.02;ctx.wind.push({object:canopy,base:.02,phase:x,strength:.008});
   for(let i=0;i<12;i++){const hem=addBox(group,-1.5+i*.27,2.35,.97,.25,.22+(i%3)*.025,.018,m.color(i%3?'#b99f72':'#d2be93'));hem.rotation.x=.08;}
   addBox(group,0,.74,.2,2.8,.13,.86,m.wood);for(const xx of[-1.18,1.18])for(const zz of[-.1,.5])addBox(group,xx,.35,zz,.075,.72,.075,m.wood);
-  const tablecloth=cloth(group,1.2,.95,m.color('#a9907a'),4);tablecloth.position.set(-.65,.82,.25);tablecloth.rotation.z=.015;
+  const tablecloth=cloth(group,1.2,.95,ctx.surface?.('linen','#c4b29e')??m.color('#a9907a'),4);tablecloth.position.set(-.65,.82,.25);tablecloth.rotation.z=.015;
   buildJar(ctx,-1,.15,.13,group,.83);buildJar(ctx,-.58,.18,.18,group,.83);buildJar(ctx,-.1,.25,.14,group,.83);buildBasket(ctx,.65,.15,.27,group,.83);buildBasket(ctx,1.1,.15,.2,group,.83);
   for(let i=0;i<6;i++){const bread=new THREE.Mesh(new THREE.SphereGeometry(.11,7,4),m.color('#c9ae77'));bread.scale.set(1.2,.35,.8);bread.position.set(.35+(i%3)*.19,.91,Math.floor(i/3)*.2);group.add(bread);}
   buildJar(ctx,-1.9,-.35,.35,group);buildBasket(ctx,1.9,-.4,.45,group);ctx.obstacles.push({x,z,width:2.7,depth:1});return group;}
