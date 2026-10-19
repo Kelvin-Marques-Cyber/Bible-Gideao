@@ -275,6 +275,42 @@ describe('Ruptura e Impulso',()=>{
     const joined=unlockPura(createGame());expect(joined.inventory.bow).toBe(1);
     expect(getAvailableWeapons(joined,'pura').map(w=>w.type)).not.toContain('sword');
   });
+  it('trocar arma usa a mesma velocidade do equipamento e não acumula bônus, inclusive após salvar',async()=>{
+    const {serializeSave,deserializeSave}=await import('../src/game');
+    const inventory=addItem(createGame(123),'spear'),equipped=equipItem(inventory,'gideon','spear');
+    const spearSpeed=getHeroStats(equipped.party[0]).speed;
+    expect(spearSpeed).toBe(11);
+    for(const initial of [inventory,equipped]){
+      let s=startBattle(initial,'training');
+      s.battle!.units.find(u=>u.side==='enemy')!.hp=1000;
+      s.battle!.units.find(u=>u.side==='enemy')!.maxHp=1000;
+      for(const weapon of ['spear','sword','spear','staff','spear'] as const){
+        s=applyBattleAction(s,'attack','raider-0',undefined,{weapon});
+        expect(s.battle!.units.find(u=>u.id==='gideon')!.speed).toBe(weapon==='sword'?10:spearSpeed);
+      }
+      s=deserializeSave(serializeSave(s))!;
+      expect(s.battle!.units.find(u=>u.id==='gideon')!.speed).toBe(spearSpeed);
+      s=applyBattleAction(s,'attack','raider-0',undefined,{weapon:'sword'});
+      expect(s.battle!.units.find(u=>u.id==='gideon')!.speed).toBe(10);
+      expect(s.party[0].equipment.weapon).toBe(initial.party[0].equipment.weapon);
+    }
+  });
+  it('o bônus da arma altera a ordenação da rodada seguinte',async()=>{
+    const {getTurnTimeline}=await import('../src/game');
+    const initial=addItem(createGame(123),'spear');
+    initial.party[0].stats.speed=9; // Tied with the real archer; the spear breaks this tie.
+    const before=startBattle(initial,'ambush');
+    for(const enemy of before.battle!.units.filter(u=>u.side==='enemy')){enemy.hp=1000;enemy.maxHp=1000;}
+    expect(before.battle!.turnOrder.slice(0,2)).toEqual(['archer-1','gideon']);
+    const sword=applyBattleAction(before,'attack','raider-0',undefined,{weapon:'sword'});
+    const spear=applyBattleAction(before,'attack','raider-0',undefined,{weapon:'spear'});
+    expect(sword.battle!.round).toBe(2);expect(spear.battle!.round).toBe(2);
+    expect(sword.battle!.turnOrder.slice(0,2)).toEqual(['archer-1','gideon']);
+    expect(spear.battle!.turnOrder.slice(0,2)).toEqual(['gideon','archer-1']);
+    expect(sword.battle!.events.some(e=>e.actorId==='archer-1'&&e.kind==='hit')).toBe(true);
+    expect(spear.battle!.events.some(e=>e.actorId==='archer-1'&&e.kind==='hit')).toBe(false);
+    expect(getTurnTimeline(spear).next[0].id).toBe('gideon');
+  });
   it('BP começa em 1, limita-se a 5 e não cresce na rodada após gastar',async()=>{
     let s=durableBattle();expect(s.battle!.units[0].bp).toBe(1);
     s=applyBattleAction(s,'attack','raider-0',undefined,{boost:1,weapon:'staff'});

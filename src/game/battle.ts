@@ -116,7 +116,12 @@ export function applyBattleAction(state:GameState,action:BattleAction,targetId?:
   const preview=getActionPreview(state,action,targetId,options);if(!preview.valid)return state;
   const selectedItem=itemId??['bread','meal','dates'].find(id=>state.inventory[id]>0);if(action==='supply'&&(!selectedItem||ITEMS[selectedItem]?.kind!=='consumable'||!(state.inventory[selectedItem]>0)))return state;
   let next=structuredClone(state);const b=next.battle!,a=currentActor(next)!,t=b.units.find(u=>u.id===targetId),boost=preview.boost;b.events=[];
-  const weapon=getAvailableWeapons(next,a.id).find(w=>w.type===preview.weapon);if(weapon){a.weaponType=weapon.type;a.weaponId=weapon.itemId;a.attack=weapon.attack;}
+  const weapon=getAvailableWeapons(next,a.id).find(w=>w.type===preview.weapon);if(weapon){
+    a.weaponType=weapon.type;a.weaponId=weapon.itemId;a.attack=weapon.attack;
+    const hero=next.party.find(h=>h.id===a.heroId);
+    // Recompute from equipment so repeated swaps replace, rather than stack, the speed bonus.
+    if(hero)a.speed=getHeroStats({...hero,equipment:{...hero.equipment,weapon:weapon.itemId}}).speed;
+  }
   a.vigor-=ACTIONS[action].cost;if(boost){a.bp-=boost;a.lastBoostRound=b.round;log(b,`${a.name} usa Ímpeto ×${boost}.`);effect(b,a,action,'boost',a,boost,'Ímpeto');}
   if(['attack','precise','focus','quick'].includes(action)){
     if((action==='precise'||action==='focus')&&t!.guarding){t!.guarding=false;log(b,`${a.name} rompe a postura de ${t!.name}.`);}
