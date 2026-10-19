@@ -67,7 +67,7 @@ async function walkTo(page:Page,end:P){
 
 test('complete four acts through exploration, combat, equipment and saved progress',async({page})=>{
  test.setTimeout(900000);const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',message=>{if(message.type()==='error')errors.push(message.text());});
- await page.goto('/');await page.getByRole('button',{name:'Iniciar jornada',exact:true}).click();await dialogues(page);await page.waitForTimeout(12500);
+ await page.goto('/');await page.getByRole('button',{name:'Iniciar jornada',exact:true}).click();await dialogues(page);await expect.poll(async()=>(await world(page)).rendering.preparing,{timeout:90000}).toBe(false);await expect.poll(async()=>(await world(page)).cinematic,{timeout:45000}).toBeNull();
  const initial=await world(page);await page.keyboard.down('d');await page.waitForTimeout(1800);await page.keyboard.up('d');expect(Math.hypot((await world(page)).position.x-initial.position.x,(await world(page)).position.z-initial.position.z)).toBeGreaterThan(.5);
  for(let stage=0;stage<14;stage++){
   console.log('Campaign objective',stage);await expect.poll(async()=>(await read(page)).stage).toBe(stage);
@@ -79,8 +79,7 @@ test('complete four acts through exploration, combat, equipment and saved progre
   await walkTo(page,destinations[stage]);await page.getByRole('button',{name:'Interagir',exact:true}).click();await dialogues(page);
   if(stage===2||stage===12)await fight(page);
   await expect.poll(async()=>(await read(page)).stage,{timeout:20000}).toBe(stage+1);
-  await page.waitForTimeout(7500);
-  if([2,5,8,11,13].includes(stage))await page.screenshot({path:`test-results/act-${stage}.png`});
+  if([2,5,8,11,13].includes(stage)){await expect.poll(async()=>(await world(page)).cinematic,{timeout:45000}).toBeNull();await page.screenshot({path:`test-results/act-${stage}.png`});}
  }
  const completed=await read(page);expect(completed.flags.completed).toBe(true);expect(completed.quests.campaign.status).toBe('completed');expect(completed.party.length).toBe(2);expect(completed.party[0].stats.level).toBeGreaterThan(1);
  await page.getByRole('button',{name:'Menu',exact:true}).click();await page.getByRole('button',{name:/Salvar jornada/}).click();await expect(page.getByRole('status')).toContainText('salva');await page.reload();await page.getByRole('button',{name:'Retomar jornada',exact:true}).click();expect((await read(page)).stage).toBe(14);expect((await world(page)).narrativeVictory).toBe(true);expect((await read(page)).party[0].equipment.weapon).toBe('spear');expect(errors).toEqual([]);
@@ -88,7 +87,7 @@ test('complete four acts through exploration, combat, equipment and saved progre
 
 test('touch movement, responsive menus, install manifest and offline recovery',async({browser})=>{
  test.setTimeout(180000);const context=await browser.newContext({viewport:{width:844,height:390},hasTouch:true,isMobile:true,deviceScaleFactor:1});const page=await context.newPage();const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',message=>{if(message.type()==='error')errors.push(message.text());});
- await page.goto('/');await page.getByRole('button',{name:'Iniciar jornada',exact:true}).click();await dialogues(page);await page.waitForTimeout(12500);
+ await page.goto('/');await page.getByRole('button',{name:'Iniciar jornada',exact:true}).click();await dialogues(page);await expect.poll(async()=>(await world(page)).rendering.preparing,{timeout:90000}).toBe(false);await expect.poll(async()=>(await world(page)).cinematic,{timeout:45000}).toBeNull();
  const before=(await world(page)).position,joy=page.getByLabel('Controle de movimento'),box=(await joy.boundingBox())!;const touch=await context.newCDPSession(page);await touch.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:box.x+box.width/2,y:box.y+box.height/2}]});await touch.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:box.x+box.width/2+35,y:box.y+box.height/2}]});await page.waitForTimeout(1500);await touch.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});await touch.detach();const after=(await world(page)).position;expect(Math.hypot(after.x-before.x,after.z-before.z)).toBeGreaterThan(.5);
  await page.getByRole('button',{name:'Inventário',exact:true}).first().click();await expect(page.getByRole('heading',{name:'Inventário',exact:true})).toBeVisible();expect(await page.locator('body').evaluate(el=>el.scrollWidth<=innerWidth)).toBe(true);await page.getByRole('button',{name:'Fechar menu'}).click();
  await page.getByRole('button',{name:'Menu',exact:true}).click();await page.getByRole('button',{name:/Salvar jornada/}).click();await expect(page.getByRole('status')).toContainText('salva');

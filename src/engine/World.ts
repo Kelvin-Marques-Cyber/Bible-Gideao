@@ -258,11 +258,12 @@ export class World {
     const anisotropy=this.softwareRenderer?1:Math.min(8,this.renderer.capabilities.getMaxAnisotropy());
     void loadEnvironmentTextures(import.meta.env.BASE_URL,anisotropy).then(textures=>{
       if(this.disposed){Object.values(textures).forEach(t=>t.dispose());return;}
-      this.authoredTextures=textures;Object.values(textures).forEach(t=>this.ownedEnvironmentTextures.add(t));
+      Object.assign(this.authoredTextures,textures);Object.values(textures).forEach(t=>this.ownedEnvironmentTextures.add(t));
       const assign=(material:THREE.MeshStandardMaterial,id:AuthoredMaterialId,tint?:string)=>{let texture:THREE.Texture=textures[id];if(material.userData.calmSoil){texture=createCalmGroundTexture(texture);this.ownedEnvironmentTextures.add(texture);}if(material.userData.tileRepeat){texture=texture.clone();texture.repeat.setScalar(material.userData.tileRepeat);texture.needsUpdate=true;this.ownedEnvironmentTextures.add(texture);}material.map=texture;if(tint)material.color.set(tint);material.bumpMap=texture;material.bumpScale=id==='limestone'?.045:id==='adobe'?.018:.012;material.needsUpdate=true;const software=this.softwareMaterials.get(material);if(software){software.map=texture;software.color.copy(material.color);software.needsUpdate=true;}};
       assign(this.stone,'limestone','#eee7d9');assign(this.adobe,'adobe','#f4eee2');assign(this.timber,'wood','#ded5bd');assign(this.roofMaterial,'sand','#eee2c6');assign(this.rockMaterial,'sand','#d3cfb7');
       for(const material of this.materialCache.values())if(material.userData.surfaceId)assign(material,material.userData.surfaceId);
       const path=createWornPathTexture(textures.sand);path.anisotropy=anisotropy;this.ownedEnvironmentTextures.add(path);this.pathMaterial.map=path;this.pathMaterial.color.set('#e7ddc4');this.pathMaterial.needsUpdate=true;const softwarePath=this.softwareMaterials.get(this.pathMaterial);if(softwarePath){softwarePath.map=path;softwarePath.color.copy(this.pathMaterial.color);softwarePath.needsUpdate=true;}
+      this.battleStage?.refreshEnvironmentTextures(this.getBattleTextures());
     }).catch(()=>{/* Procedural fallbacks keep the world navigable if an offline asset is unavailable. */});
     new THREE.TextureLoader().load(`${import.meta.env.BASE_URL}${oliveSprigV2.url}`,texture=>{
       if(this.disposed){texture.dispose();return;}const previous=this.sprigTexture;texture.colorSpace=THREE.SRGBColorSpace;texture.magFilter=THREE.NearestFilter;texture.minFilter=THREE.LinearMipmapLinearFilter;texture.anisotropy=anisotropy;texture.name='Original silver-green olive sprig';this.sprigTexture=texture;this.ownedEnvironmentTextures.add(texture);
@@ -573,6 +574,8 @@ export class World {
 
   setQuality(quality:'high'|'low',automatic=false){this.quality=quality;if(!automatic)this.qualityPinned=true;this.pipeline.setQuality(quality);this.lightingRig?.setQuality(quality);this.battleStage?.setQuality(quality);this.resize();}
 
+  private getBattleTextures(){return{stone:this.stone.map,adobe:this.adobe.map,wood:this.timber.map,leaves:this.foliageMaterial.map,rock:this.rockMaterial.map,roof:this.roofMaterial.map,sprig:this.sprigTexture,surfaces:this.authoredTextures,shadow:this.contactShadowMaterial.map,glow:this.glow,haze:this.haze};}
+
   setBattle(state: boolean | BattleVisual | null) {
     this.input.set(0,0);this.keys.clear();
     if(!state){
@@ -586,7 +589,7 @@ export class World {
     if(this.battleStage){this.battleStage.setState(visual);return;}
     this.explorationSnapshot={position:this.camera.position.clone(),quaternion:this.camera.quaternion.clone(),zoom:this.camera.zoom,target:this.cameraTarget.clone(),background:this.scene.background,fog:this.scene.fog,cinematic:this.cinematic?{...this.cinematic}:null};
     this.cinematic=null;this.battleActive=true;this.root.visible=false;this.player.visible=false;
-    this.battleStage=new BattleStage({scene:this.scene,camera:this.camera,region:this.region,software:this.softwareRenderer,quality:this.quality,textures:{stone:this.stone.map,adobe:this.adobe.map,wood:this.timber.map,leaves:this.foliageMaterial.map,rock:this.rockMaterial.map,roof:this.roofMaterial.map,sprig:this.sprigTexture,surfaces:this.authoredTextures,shadow:this.contactShadowMaterial.map,glow:this.glow,haze:this.haze},frames:kind=>kind==='gideao'?this.hero.frames:kind.startsWith('enemy-')?this.textureCache.get(`battle-${kind.slice(6)}`):this.textureCache.get(`people-${kind==='villager'?'pura':kind}`),heroActions:context=>this.heroAnimator.getActionFrames(context),onLayout:layout=>this.callbacks.onBattleLayout?.(layout)},visual);
+    this.battleStage=new BattleStage({scene:this.scene,camera:this.camera,region:this.region,software:this.softwareRenderer,quality:this.quality,textures:this.getBattleTextures(),frames:kind=>kind==='gideao'?this.hero.frames:kind.startsWith('enemy-')?this.textureCache.get(`battle-${kind.slice(6)}`):this.textureCache.get(`people-${kind==='villager'?'pura':kind}`),heroActions:context=>this.heroAnimator.getActionFrames(context),onLayout:layout=>this.callbacks.onBattleLayout?.(layout)},visual);
     const rect=this.container.getBoundingClientRect();this.battleStage.resize(rect.width,rect.height);this.callbacks.onNearby?.([]);this.nearby=[];this.reportedNearby=[];
   }
 

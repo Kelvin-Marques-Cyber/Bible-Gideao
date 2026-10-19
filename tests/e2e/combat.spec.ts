@@ -23,7 +23,7 @@ function encounter(prepareBreak = false): GameState {
   return game;
 }
 
-async function seedSave(page: Page, game: GameState) {
+async function seedSave(page: Page, game: GameState, waitForMaterials = true) {
   console.log('Combat fixture: opening', gameUrl);
   // Establish the correct origin without mounting React while the fixture DB is created.
   await page.route('**/*', async route => {
@@ -56,6 +56,9 @@ async function seedSave(page: Page, game: GameState) {
   console.log('Combat fixture: arena visible');
   await page.screenshot({ path: page.viewportSize()!.width <= 850 ? 'test-results/combat-mobile-layout.png' : 'test-results/combat-desktop-layout.png' });
   await expect.poll(async () => (await world(page)).battleStage?.units?.length).toBe(game.battle!.units.length);
+  await expect.poll(async () => (await world(page)).heroAnimation.ready, { timeout: 90000 }).toBe(true);
+  await expect.poll(async () => (await world(page)).peopleV2.length, { timeout: 90000 }).toBe(4);
+  if(waitForMaterials)await expect.poll(async () => (await world(page)).battleStage.authoredMaterialsReady, { timeout: 90000 }).toBe(true);
 }
 
 async function settle(page: Page, oldEventId: number) {
@@ -128,8 +131,12 @@ test('observation discovers a weakness and real save recovery preserves combat d
 
 test('boosted attack presents three distinct hits before Break and keeps the full result after reload', async ({ page }) => {
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
-  await seedSave(page, encounter(true));
+  let releaseMaterials!: () => void;
+  const materialsGate = new Promise<void>(resolve => { releaseMaterials = resolve; });
+  await page.route('**/assets/ofra-materials-v2.png', async route => { await materialsGate; await route.continue(); });
+  await seedSave(page, encounter(true), false);
   const initial = await read(page), oldEventId = initial.battle!.eventId, debugBefore = await world(page);
+  expect(debugBefore.battleStage.authoredMaterialsReady).toBe(false);
   expect(debugBefore.battleStage.units.filter((u: any) => u.side === 'enemy').every((u: any) => u.x < 0)).toBe(true);
   expect(debugBefore.battleStage.units.filter((u: any) => u.side === 'ally').every((u: any) => u.x > 0)).toBe(true);
   await chooseBoostedBow(page);
@@ -137,6 +144,14 @@ test('boosted attack presents three distinct hits before Break and keeps the ful
   await page.getByRole('button', { name: 'Confirmar ação', exact: true }).click();
   await expect(page.getByTestId('action-attack')).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Aumentar ímpeto', exact: true })).toBeDisabled();
+  releaseMaterials();
+  await expect.poll(async () => (await world(page)).battleStage.authoredMaterialsReady, { timeout: 90000 }).toBe(true);
+  const refreshed = (await world(page)).battleStage;
+  expect(refreshed.arenaInstance).toBe(debugBefore.battleStage.arenaInstance);
+  expect(refreshed.environmentMaterials.sourceCount).toBe(9);
+  expect(refreshed.environmentMaterials.mappedBySurface.linen).toBeGreaterThan(0);
+  expect(refreshed.environmentMaterials.authoredGround).toBe(true);
+  expect(refreshed.units.find((unit: any) => unit.id === 'pura')).toMatchObject({ directionalSprite: true, mirrored: false });
   await expect(page.getByTestId('battle-event')).toContainText('QUEBRA', { timeout: 60000 });
   await page.screenshot({ path: 'docs/screenshots/combat-desktop.png' });
   await settle(page, oldEventId);

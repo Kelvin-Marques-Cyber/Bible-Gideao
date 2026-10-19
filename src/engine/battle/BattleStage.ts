@@ -59,24 +59,46 @@ export class BattleStage {
   private readonly wind:THREE.Group[]=[];
   private readonly authoredWind:EnvironmentWind[]=[];
   private authoredEnvironment?:EnvironmentContext;
+  private materialAtlasSource?:THREE.Texture;
+  private materialAtlasSignature='';
+  private environmentRefreshes=0;
 
   constructor(private readonly options:StageOptions,state:StageState) {
     this.state=state;this.round=state.round??1;this.root.name='Cinematic battle stage';this.root.add(this.environment,this.actors,this.effectsRoot);options.scene.add(this.root);
     this.buildEnvironment();this.batchEnvironment();
-    if(options.software){const converted=new Map<THREE.MeshStandardMaterial,THREE.MeshLambertMaterial>();this.environment.traverse(object=>{if(!(object instanceof THREE.Mesh)||!(object.material instanceof THREE.MeshStandardMaterial))return;const original=object.material;let material=converted.get(original);if(!material){material=new THREE.MeshLambertMaterial({color:original.color,map:original.map,alphaTest:original.alphaTest,transparent:original.transparent,opacity:original.opacity,side:original.side,depthWrite:original.depthWrite,vertexColors:original.vertexColors});converted.set(original,material);}object.material=material;});}
+    if(options.software){const converted=new Map<THREE.MeshStandardMaterial,THREE.MeshLambertMaterial>();this.environment.traverse(object=>{if(!(object instanceof THREE.Mesh)||!(object.material instanceof THREE.MeshStandardMaterial))return;const original=object.material;let material=converted.get(original);if(!material){material=new THREE.MeshLambertMaterial({color:original.color,map:original.map,alphaTest:original.alphaTest,transparent:original.transparent,opacity:original.opacity,side:original.side,depthWrite:original.depthWrite,vertexColors:original.vertexColors});material.userData={...original.userData};converted.set(original,material);}object.material=material;});}
+    this.refreshEnvironmentTextures(options.textures);
     this.setState(state);
   }
 
   /** Exploration and the Ofra battle backdrop share authored building and olive geometry. */
   private environmentContext():EnvironmentContext {
     if(this.authoredEnvironment)return this.authoredEnvironment;
-    const t=this.options.textures,material=(color:THREE.ColorRepresentation,map:THREE.Texture|null=null)=>{const key=`authored:${new THREE.Color(color).getHexString()}:${map?.uuid??''}`;let value=this.materials.get(key) as THREE.MeshStandardMaterial|undefined;if(!value){value=new THREE.MeshStandardMaterial({color,map,roughness:1});this.materials.set(key,value);}return value;};
-    return this.authoredEnvironment={root:this.environment,materials:{stone:material('#eee7d9',t.stone),adobe:material('#f4eee2',t.adobe),wood:material('#ded5bd',t.wood),roof:material('#eee2c6',t.roof??t.adobe),rock:material('#d3cfb7',t.rock),earth:material('#bba983'),leaf:material('#d0d6ae'),contact:material('#22281d'),color:color=>material(color)},obstacles:[],wind:this.authoredWind,interiors:[],groundHeight:()=>0,sprigTexture:t.sprig,surface:(id,color)=>material(color,t.surfaces?.[id]??null)};
+    const t=this.options.textures,material=(color:THREE.ColorRepresentation,map:THREE.Texture|null=null,surface?:AuthoredMaterialId)=>{const key=`authored:${surface??''}:${new THREE.Color(color).getHexString()}:${map?.uuid??''}`;let value=this.materials.get(key) as THREE.MeshStandardMaterial|undefined;if(!value){value=new THREE.MeshStandardMaterial({color,map,roughness:1});if(surface)value.userData.surfaceId=surface;this.materials.set(key,value);}return value;};
+    return this.authoredEnvironment={root:this.environment,materials:{stone:material('#eee7d9',t.stone,'limestone'),adobe:material('#f4eee2',t.adobe,'adobe'),wood:material('#ded5bd',t.wood,'wood'),roof:material('#eee2c6',t.roof??t.adobe,'sand'),rock:material('#d3cfb7',t.rock,'sand'),earth:material('#bba983'),leaf:material('#d0d6ae'),contact:material('#22281d'),color:color=>material(color)},obstacles:[],wind:this.authoredWind,interiors:[],groundHeight:()=>0,sprigTexture:t.sprig,surface:(id,color)=>material(color,t.surfaces?.[id]??null,id)};
   }
 
-  private lit(color:THREE.ColorRepresentation,map:THREE.Texture|null=null,vertexColors=false) {
-    const key=`${new THREE.Color(color).getHexString()}:${map?.uuid??''}:${vertexColors}`;let material=this.materials.get(key);
-    if(!material){material=this.options.software?new THREE.MeshLambertMaterial({color,map,vertexColors}):new THREE.MeshStandardMaterial({color,map,vertexColors,roughness:.95});this.materials.set(key,material);}return material;
+  private lit(color:THREE.ColorRepresentation,map:THREE.Texture|null=null,vertexColors=false,surface?:AuthoredMaterialId) {
+    const key=`${surface??''}:${new THREE.Color(color).getHexString()}:${map?.uuid??''}:${vertexColors}`;let material=this.materials.get(key);
+    if(!material){material=this.options.software?new THREE.MeshLambertMaterial({color,map,vertexColors}):new THREE.MeshStandardMaterial({color,map,vertexColors,roughness:.95});if(surface)material.userData.surfaceId=surface;this.materials.set(key,material);}return material;
+  }
+
+  /** Late offline/cache loads update live materials; actors, camera and event queue keep their identity. */
+  refreshEnvironmentTextures(textures:StageOptions['textures']){
+    if(this.disposed)return;Object.assign(this.options.textures,textures);
+    const surfaces=textures.surfaces,dirt=surfaces?.dirt,signature=Object.entries(surfaces??{}).sort(([a],[b])=>a.localeCompare(b)).map(([id,texture])=>`${id}:${texture?.uuid}`).join('|');if(!dirt||this.materialAtlasSignature===signature)return;
+    const ground=createCalmGroundTexture(dirt);ground.repeat.set(5.2,5.2);ground.name='Authored battle clay';this.ownedTextures.add(ground);
+    const arena=(surfaces.sand??dirt).clone();arena.repeat.set(3,3);arena.needsUpdate=true;arena.name='Authored battle worn sand';this.ownedTextures.add(arena);
+    const liveMaterials=new Set<THREE.Material>(this.materials.values());this.environment.traverse(object=>{if(object instanceof THREE.Mesh)(Array.isArray(object.material)?object.material:[object.material]).forEach(material=>liveMaterials.add(material));});
+    const replaced=new Set<THREE.Texture>();
+    for(const material of liveMaterials){
+      if(!(material instanceof THREE.MeshStandardMaterial||material instanceof THREE.MeshLambertMaterial))continue;
+      const role=material.userData.environmentGround as 'ground'|'arena'|undefined,surface=material.userData.surfaceId as AuthoredMaterialId|undefined,map=role==='ground'?ground:role==='arena'?arena:surface?surfaces[surface]:undefined;if(!map)continue;
+      const previous=material.map;material.map=map;if(role){material.color.set(role==='ground'?'#efe9dc':'#e2dac8');if(previous&&this.ownedTextures.has(previous))replaced.add(previous);}
+      if(material instanceof THREE.MeshStandardMaterial){material.bumpMap=map;material.bumpScale=surface==='limestone'?.045:surface==='adobe'?.018:.012;}material.needsUpdate=true;
+    }
+    replaced.forEach(texture=>{if(texture===ground||texture===arena)return;texture.dispose();this.ownedTextures.delete(texture);});
+    this.materialAtlasSource=dirt;this.materialAtlasSignature=signature;this.environmentRefreshes++;
   }
   private box(x:number,y:number,z:number,w:number,h:number,d:number,material:THREE.Material,parent:THREE.Object3D=this.environment) {const mesh=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),material);mesh.position.set(x,y,z);mesh.castShadow=true;mesh.receiveShadow=true;parent.add(mesh);return mesh;}
   private cylinder(x:number,y:number,z:number,r:number,h:number,material:THREE.Material,parent:THREE.Object3D=this.environment) {const mesh=new THREE.Mesh(new THREE.CylinderGeometry(r*.8,r,h,7),material);mesh.position.set(x,y,z);mesh.castShadow=true;mesh.receiveShadow=true;parent.add(mesh);return mesh;}
@@ -88,12 +110,12 @@ export class BattleStage {
     const sun=new THREE.DirectionalLight(night?'#a6b7e8':'#ffd199',night?1.5:3.2);sun.position.set(-9,13,11);sun.castShadow=!this.options.software;sun.shadow.mapSize.set(this.options.quality==='high'?2048:512,this.options.quality==='high'?2048:512);Object.assign(sun.shadow.camera,{left:-15,right:15,top:12,bottom:-12,near:.1,far:55});sun.shadow.bias=-.0006;sun.shadow.normalBias=.035;this.environment.add(sun,sun.target);
     const rim=new THREE.DirectionalLight(night?'#ffbe76':'#fff0c6',night?.7:.5);rim.position.set(8,5,-9);this.environment.add(rim);
     const faceFill=new THREE.DirectionalLight(night?'#d5dfe2':'#e6e2d4',night?1.05:.3);faceFill.position.set(1,8,17);this.environment.add(faceFill);
-    const groundMap=region==='ofra'&&textures.surfaces?.dirt?createCalmGroundTexture(textures.surfaces.dirt):groundTexture();groundMap.repeat.set(5.2,5.2);groundMap.needsUpdate=true;this.ownedTextures.add(groundMap);const ground=new THREE.Mesh(new THREE.PlaneGeometry(70,65),this.lit(night?'#a6a18b':region==='ofra'?'#efe9dc':'#d6c9a1',groundMap));ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;ground.position.y=-.025;this.environment.add(ground);
-    const stageGround=new THREE.Mesh(new THREE.CircleGeometry(9.5,48),this.lit('#b6a47b',groundMap));stageGround.rotation.x=-Math.PI/2;stageGround.scale.y=.58;stageGround.position.set(0,-.014,.1);stageGround.receiveShadow=true;this.environment.add(stageGround);
+    const groundMap=groundTexture();groundMap.repeat.set(5.2,5.2);groundMap.needsUpdate=true;this.ownedTextures.add(groundMap);const ground=new THREE.Mesh(new THREE.PlaneGeometry(70,65),this.lit(night?'#a6a18b':region==='ofra'?'#efe9dc':'#d6c9a1',groundMap));ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;ground.position.y=-.025;this.environment.add(ground);
+    ground.material.userData.environmentGround='ground';const stageGround=new THREE.Mesh(new THREE.CircleGeometry(9.5,48),this.lit('#ddd3bf',groundMap));stageGround.material.userData.environmentGround='arena';stageGround.rotation.x=-Math.PI/2;stageGround.scale.y=.58;stageGround.position.set(0,-.014,.1);stageGround.receiveShadow=true;this.environment.add(stageGround);
     // Distant ridges, middle ground terraces and foreground brush create separate depth layers.
     for(let i=0;i<19;i++){const height=3+rnd()*9,x=-32+i*3.5,z=-24-rnd()*15;const mountain=new THREE.Mesh(new THREE.ConeGeometry(6+rnd()*5,height,6),this.lit(night?['#26384b','#2c4051','#344758'][i%3]:['#777f77','#8c9181','#929887'][i%3]));mountain.position.set(x,height/2-1,z);mountain.rotation.y=rnd()*3;this.environment.add(mountain);}
     for(let i=0;i<35;i++){const x=(rnd()-.5)*44,z=-8-rnd()*10;if(Math.abs(x)<6&&z>-10)continue;this.rock(x,z,.45+rnd()*1.2,textures.rock);}
-    const stone=this.lit('#d9c9a4',textures.stone),wood=this.lit('#b7a489',textures.wood);
+    const stone=this.lit('#eee7d9',textures.stone,false,'limestone'),wood=this.lit('#ded5bd',textures.wood,false,'wood');
     for(let i=0;i<24;i++)this.box(-16+i*1.35,.24,-9.5,.95,.45,.62,stone);
     if(region==='ofra'||region==='altar'){
       this.house(-10,-12,4.6,3.4,3.2);this.house(8,-14,4,3.5,3.9);this.house(-3,-18,3.8,3.2,2.7);
@@ -105,7 +127,7 @@ export class BattleStage {
       for(let i=0;i<(region==='midian'?44:20);i++){const x=-28+rnd()*56,z=-19-rnd()*18,s=.45+rnd()*.55;this.tent(x,z,s,true);if(i%3===0)this.distantFire(x+1,z);}
       this.fire(-8,-5);this.fire(8,-7);this.fire(2,-12);
       this.tree(13,-4,1.2);this.tree(-13,-3,1.25);
-      if(region==='harode'){const water=new THREE.Mesh(new THREE.CircleGeometry(5,30),this.options.software?new THREE.MeshLambertMaterial({color:'#6a9a9b',transparent:true,opacity:.8}):new THREE.MeshStandardMaterial({color:'#719d9e',metalness:.3,roughness:.2,transparent:true,opacity:.9}));water.rotation.x=-Math.PI/2;water.position.set(10,.012,-7);water.scale.y=.55;this.environment.add(water);}
+      if(region==='harode'){const water=new THREE.Mesh(new THREE.CircleGeometry(5,30),this.options.software?new THREE.MeshLambertMaterial({color:'#d9e0d9',map:textures.surfaces?.water??null,transparent:true,opacity:.8}):new THREE.MeshStandardMaterial({color:'#d9e0d9',map:textures.surfaces?.water??null,metalness:.3,roughness:.2,transparent:true,opacity:.9}));water.material.userData.surfaceId='water';water.rotation.x=-Math.PI/2;water.position.set(10,.012,-7);water.scale.y=.55;this.environment.add(water);}
     }
     // Low vegetation and limestone fragments continue beyond the tactical formation.
     const count=850,blades:number[]=[];for(let i=0;i<3;i++){const a=i*Math.PI/3;blades.push(-Math.cos(a)*.07,0,-Math.sin(a)*.07,Math.cos(a)*.07,0,Math.sin(a)*.07,0,.33,0);}const grassGeo=new THREE.BufferGeometry();grassGeo.setAttribute('position',new THREE.Float32BufferAttribute(blades,3));grassGeo.computeVertexNormals();const grassMat=this.lit('#7b8559');grassMat.side=THREE.DoubleSide;const grass=new THREE.InstancedMesh(grassGeo,grassMat,count),dummy=new THREE.Object3D();
@@ -119,7 +141,7 @@ export class BattleStage {
     for(const [x,z] of [[-8,2],[8.6,1],[-9,-5],[10,-6]]){this.cylinder(x,.32,z,.28,.65,this.lit('#a77854'));this.box(x+.4,.08,z+.5,1,.12,.12,wood).rotation.y=.6;}
   }
 
-  private rock(x:number,z:number,size:number,map:THREE.Texture|null) {const rock=new THREE.Mesh(new THREE.DodecahedronGeometry(size,1),this.lit('#c0b8a0',map));rock.position.set(x,size*.33,z);rock.scale.set(1,.62,.9);rock.rotation.y=x+z;rock.castShadow=true;rock.receiveShadow=true;this.environment.add(rock);}
+  private rock(x:number,z:number,size:number,map:THREE.Texture|null) {const rock=new THREE.Mesh(new THREE.DodecahedronGeometry(size,1),this.lit('#d5d0bd',map,false,'sand'));rock.position.set(x,size*.33,z);rock.scale.set(1,.62,.9);rock.rotation.y=x+z;rock.castShadow=true;rock.receiveShadow=true;this.environment.add(rock);}
   private house(x:number,z:number,w:number,d:number,h:number){buildHouse(this.environmentContext(),{x,z,width:w,depth:d,height:h});}
   private tree(x:number,z:number,scale:number){buildOliveTree(this.environmentContext(),x,z,scale);}
   private tent(x:number,z:number,scale:number,enemy=false){buildTent(this.environmentContext(),x,z,scale,enemy);}
@@ -145,7 +167,7 @@ export class BattleStage {
   }
 
   private getFrames(unit:StageUnit){return this.options.frames(unit.side==='enemy'?`enemy-${unit.archetype??'raider'}`:unit.id==='gideon'||unit.id==='gideao'?'gideao':unit.id==='pura'?'pura':'villager')??this.options.frames(unit.side==='enemy'?'guard':'pura');}
-  private createWeapon(kind:WeaponType){const group=new THREE.Group(),metal=this.lit('#c1c3b9'),wood=this.lit('#927b58',this.options.textures.wood);group.userData.weaponType=kind;if(kind==='sword'){this.box(0,.42,0,.075,.85,.035,metal,group);this.box(0,-.05,0,.28,.045,.06,this.lit('#d1ad63'),group);this.box(0,-.18,0,.06,.25,.06,wood,group);}else if(kind==='spear'){this.cylinder(0,.15,0,.025,1.65,wood,group);const point=new THREE.Mesh(new THREE.ConeGeometry(.075,.32,4),metal);point.position.y=1.12;group.add(point);}else if(kind==='bow'){const bow=new THREE.Mesh(new THREE.TorusGeometry(.48,.035,4,18,Math.PI),wood);bow.rotation.z=-Math.PI/2;group.add(bow);this.box(.0,0,0,.012,.95,.012,this.lit('#d0bc89'),group);}else this.cylinder(0,.25,0,.045,1.65,wood,group);return group;}
+  private createWeapon(kind:WeaponType){const group=new THREE.Group(),metal=this.lit('#c1c3b9'),wood=this.lit('#b7a38b',this.options.textures.wood,false,'wood');group.userData.weaponType=kind;if(kind==='sword'){this.box(0,.42,0,.075,.85,.035,metal,group);this.box(0,-.05,0,.28,.045,.06,this.lit('#d1ad63'),group);this.box(0,-.18,0,.06,.25,.06,wood,group);}else if(kind==='spear'){this.cylinder(0,.15,0,.025,1.65,wood,group);const point=new THREE.Mesh(new THREE.ConeGeometry(.075,.32,4),metal);point.position.y=1.12;group.add(point);}else if(kind==='bow'){const bow=new THREE.Mesh(new THREE.TorusGeometry(.48,.035,4,18,Math.PI),wood);bow.rotation.z=-Math.PI/2;group.add(bow);this.box(.0,0,0,.012,.95,.012,this.lit('#d0bc89'),group);}else this.cylinder(0,.25,0,.045,1.65,wood,group);return group;}
 
   resize(width:number,height:number){const aspect=width/height,halfHeight=Math.max(5.25,9.9/aspect);const camera=this.options.camera;camera.left=-halfHeight*aspect;camera.right=halfHeight*aspect;camera.top=halfHeight;camera.bottom=-halfHeight;camera.zoom=1;camera.updateProjectionMatrix();this.updateCamera(0);this.emitLayout();}
   setQuality(quality:'high'|'low'){this.options.quality=quality;this.environment.traverse(child=>{if(child instanceof THREE.DirectionalLight&&child.castShadow){child.shadow.mapSize.set(quality==='high'?2048:512,quality==='high'?2048:512);child.shadow.map?.dispose();child.shadow.map=null;}});}
@@ -225,7 +247,14 @@ export class BattleStage {
   getFocusPoints(){const event=this.current?.event,actor=event?this.units.get(event.actorId):undefined,target=event?this.units.get(event.targetId??''):undefined;return{primary:actor?.group.position.clone().add(new THREE.Vector3(0,1.2,0))??new THREE.Vector3(-2,1.2,-2.5),secondary:target?.group.position.clone().add(new THREE.Vector3(0,1.2,0))??new THREE.Vector3(2,1.2,1)};}
   getLayout():BattleLayout {const camera=this.options.camera;return{units:[...this.units.values()].map(actor=>{const head=actor.group.position.clone().add(new THREE.Vector3(0,actor.height+.22,0)).project(camera),foot=actor.group.position.clone().project(camera);return{id:actor.unit.id,x:(foot.x+1)/2,y:(1-foot.y)/2,headY:(1-head.y)/2,footY:(1-foot.y)/2,side:actor.unit.side,visible:actor.group.visible};}),animating:!!this.current,activeActorId:this.activeActorId};}
   private emitLayout(){this.options.onLayout?.(this.getLayout());}
-  getDebugInfo(){return{active:true,region:this.options.region,eventsPlayed:this.eventsPlayed,animating:!!this.current,currentEvent:this.current?.event.id??null,activeActorId:this.activeActorId,units:[...this.units.values()].map(actor=>({id:actor.unit.id,side:actor.unit.side,hp:actor.hp,x:actor.group.position.x,z:actor.group.position.z,visible:actor.group.visible,broken:actor.broken})),layout:this.getLayout()};}
+  getDebugInfo(){
+    const bindings=new Set<LitMaterial>();this.environment.traverse(object=>{if(object instanceof THREE.Mesh)for(const material of Array.isArray(object.material)?object.material:[object.material])if((material instanceof THREE.MeshStandardMaterial||material instanceof THREE.MeshLambertMaterial)&&(material.userData.surfaceId||material.userData.environmentGround))bindings.add(material);});
+    const mappedBySurface:Record<string,number>={};let pendingBindings=0,authoredGround=false;
+    for(const material of bindings){const role=material.userData.environmentGround??material.userData.surfaceId;if(!material.map)pendingBindings++;else mappedBySurface[role]=(mappedBySurface[role]??0)+1;if(material.userData.environmentGround==='ground')authoredGround=material.map?.name==='Authored battle clay';}
+    const authoredMaterialsReady=!!this.materialAtlasSource&&pendingBindings===0;
+    return{active:true,arenaInstance:this.root.uuid,authoredMaterialsReady,authoredMaterialCount:bindings.size-pendingBindings,region:this.options.region,eventsPlayed:this.eventsPlayed,animating:!!this.current,currentEvent:this.current?.event.id??null,activeActorId:this.activeActorId,environmentMaterials:{ready:authoredMaterialsReady,sourceCount:Object.keys(this.options.textures.surfaces??{}).length,pendingBindings,mappedBySurface,authoredGround,refreshes:this.environmentRefreshes},units:[...this.units.values()].map(actor=>({id:actor.unit.id,side:actor.unit.side,hp:actor.hp,x:actor.group.position.x,z:actor.group.position.z,visible:actor.group.visible,broken:actor.broken,directionalSprite:!!this.getFrames(actor.unit)?.[0]?.[0]?.userData.directionalPeople,mirrored:actor.body.scale.x<0})),layout:this.getLayout()};
+  }
+
   private removeEffectObject(object:THREE.Object3D){object.removeFromParent();object.traverse(child=>{if(child instanceof THREE.Mesh){child.geometry.dispose();const materials=Array.isArray(child.material)?child.material:[child.material];materials.forEach(material=>{if(![...this.materials.values()].includes(material as LitMaterial))material.dispose();});}else if(child instanceof THREE.Sprite)child.material.dispose();});}
   dispose(){if(this.disposed)return;this.disposed=true;if(this.current){this.current.finish();this.current.resolve();this.current=null;}this.effects.forEach(effect=>effect.dispose?.());this.effects.length=0;this.root.removeFromParent();const geometry=new Set<THREE.BufferGeometry>(),materials=new Set<THREE.Material>();this.root.traverse(child=>{if(child instanceof THREE.Mesh||child instanceof THREE.Points){geometry.add(child.geometry);(Array.isArray(child.material)?child.material:[child.material]).forEach(material=>materials.add(material));}else if(child instanceof THREE.Sprite)materials.add(child.material);});geometry.forEach(g=>g.dispose());this.materials.forEach(m=>materials.add(m));materials.forEach(m=>m.dispose());this.ownedTextures.forEach(t=>t.dispose());this.units.clear();}
 }
