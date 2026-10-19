@@ -15,18 +15,26 @@ function path(start:P,end:P,obstacles:any[]):P[]{
  if(!finish)throw new Error(`No walkable path to ${JSON.stringify(end)}`);const route:P[]=[];let cursor:P|null=finish;while(cursor){route.unshift(pos(cursor));cursor=previous.get(at(cursor.x,cursor.z))??null;}return route;
 }
 async function fight(page:Page){
+ if(await page.getByLabel('Velocidade de combate').textContent()==='1×')await page.getByLabel('Velocidade de combate').click();
  for(let i=0;i<100;i++){
+  await expect(page.locator('.combat-screen')).not.toHaveClass(/resolving/,{timeout:20000});
   const s=await read(page),b=s.battle;if(!b)return;
   if(b.status!=='active'){expect(b.status,'tactical decisions should win').toBe('victory');await page.getByRole('button',{name:'Continuar a jornada',exact:true}).click();await page.waitForTimeout(400);return;}
   const actor=b.units.find((u:any)=>u.id===b.turnOrder[b.turnIndex]),allies=b.units.filter((u:any)=>u.side==='ally'&&u.hp>0),weak=allies.find((u:any)=>u.hp<u.maxHp*.48);
-  if(weak&&Object.entries(s.inventory).some(([id,q])=>['bread','meal','dates'].includes(id)&&Number(q)>0)){
-   await page.getByRole('button',{name:`Selecionar aliado ${weak.name}`,exact:true}).click();const choice=page.getByLabel('Suprimento de batalha');if(await choice.count()){const id=['bread','meal'].find(id=>(s.inventory[id]??0)>0);if(id)await choice.selectOption(id);}
-   const supply=page.locator('.action-grid button').filter({hasText:'Suprimento'});if(await supply.count()){await supply.click();await page.waitForTimeout(650);continue;}
+  const supply=page.getByTestId('action-supply');
+  if(weak&&await supply.count()){
+   await supply.click();await page.getByRole('button',{name:`Selecionar aliado ${weak.name}`,exact:true}).click();const choice=page.getByLabel('Suprimento de batalha');const id=['bread','meal'].find(id=>(s.inventory[id]??0)>0);if(id)await choice.selectOption(id);
+   await page.getByLabel('Confirmar ação',{exact:true}).click();continue;
   }
   const target=b.units.filter((u:any)=>u.side==='enemy'&&u.hp>0).sort((a:any,b:any)=>a.hp-b.hp)[0];await page.getByRole('button',{name:`Selecionar ${target.name}`,exact:true}).click();
-  const focus=page.locator('.action-grid button').filter({hasText:'Golpe concentrado'}),precise=page.locator('.action-grid button').filter({hasText:'Ataque preciso'}),quick=page.locator('.action-grid button').filter({hasText:'Ataque rápido'});
-  if(actor.vigor>=6&&await focus.count())await focus.click();else if(actor.vigor>=3&&await precise.count())await precise.click();else if(actor.vigor>=3&&await quick.count())await quick.click();else await page.locator('.action-grid button').filter({hasText:'Atacar'}).click();
-  await page.waitForTimeout(650);
+  await page.getByTestId('action-attack').click();
+  const weaponNames:Record<string,string>={sword:'Espada',spear:'Lança',bow:'Arco',staff:'Cajado'};
+  const weakness=target.weaknesses.find((type:string)=>type===actor.weaponType||Object.entries(s.inventory).some(([id,q])=>Number(q)>0&&({short_sword:'sword',bronze_sword:'sword',spear:'spear',staff:'staff',bow:'bow'} as Record<string,string>)[id]===type));
+  if(weakness){const button=page.getByRole('button',{name:`Usar ${weaponNames[weakness]}`,exact:true});if(await button.count())await button.click();}
+  // Save points during an opening, then strike repeatedly to break the next target.
+  const spend=Math.min(3,actor.bp,target.brokenUntilRound?3:Math.max(0,target.shield-1));
+  for(let n=0;n<spend;n++){const plus=page.getByLabel('Aumentar ímpeto',{exact:true});if(await plus.isEnabled())await plus.click();}
+  await page.getByLabel('Confirmar ação',{exact:true}).click();
  }
  throw new Error('Battle failed to resolve');
 }
@@ -35,17 +43,24 @@ async function walkTo(page:Page,end:P){
  for(let tries=0;tries<300;tries++){
   const state=await read(page);if(state.battle){await dialogues(page);await fight(page);continue;}
   if(await page.locator('.dialogue-box').count()){await dialogues(page);continue;}
-  const info=await world(page),p=info.position;if(Math.hypot(p.x-end.x,p.z-end.z)<2.15)return;
+  const info=await world(page);if(info.cinematic){await expect.poll(async()=>(await world(page)).cinematic,{timeout:45000}).toBeNull();continue;}const p=info.position;if(Math.hypot(p.x-end.x,p.z-end.z)<2.15)return;
   const obstacles=info.region==='ofra'?[...info.obstacles,{x:-5.9,z:-3,width:4.3,depth:3.5}]:info.obstacles;
   const route=path(p,end,obstacles);let next=route[0]??end;
-  for(const point of route.slice(1,8)){let clear=true;const distance=Math.hypot(point.x-p.x,point.z-p.z);for(let t=0;t<=distance;t+=.12){const f=distance?t/distance:0,x=p.x+(point.x-p.x)*f,z=p.z+(point.z-p.z)*f;if(obstacles.some((o:any)=>Math.abs(x-o.x)<o.width/2+.32&&Math.abs(z-o.z)<o.depth/2+.32)){clear=false;break;}}if(!clear)break;next=point;}
+  for(const point of route.slice(1,8)){
+   let clear=true;const distance=Math.hypot(point.x-p.x,point.z-p.z);
+   const inside=(o:any,x:number,z:number)=>Math.abs(x-o.x)<o.width/2+.32&&Math.abs(z-o.z)<o.depth/2+.32;
+   // A real player can stand inside the navigator's conservative padding. Allow leaving it.
+   const escaping=new Set(obstacles.filter((o:any)=>inside(o,p.x,p.z)));
+   const steps=Math.max(1,Math.ceil(distance/.08));for(let i=0;i<=steps;i++){const f=i/steps,x=p.x+(point.x-p.x)*f,z=p.z+(point.z-p.z)*f;for(const o of obstacles){if(!inside(o,x,z))escaping.delete(o);else if(!escaping.has(o)){clear=false;break;}}if(!clear)break;}
+   if(!clear)break;if(escaping.size)continue;next=point;
+  }
   const dx=next.x-p.x,dz=next.z-p.z;
   // Invert the camera-aligned movement basis. Tests use real key input only.
   const sx=.852*dx-.523*dz,sy=.523*dx+.852*dz,len=Math.hypot(sx,sy),keys:string[]=[];
   if(sx/len>.37)keys.push('d');if(sx/len<-.37)keys.push('a');if(sy/len>.37)keys.push('s');if(sy/len<-.37)keys.push('w');
   for(const k of keys)await page.keyboard.down(k);await page.waitForTimeout(220);for(const k of keys)await page.keyboard.up(k);
   if(last&&Math.hypot(last.x-p.x,last.z-p.z)<.025)stuck++;else stuck=0;last=p;
-  if(stuck>12)throw new Error(`Movement stuck: ${JSON.stringify({p,end,route:route.slice(0,6)})}`);
+  if(stuck>12)throw new Error(`Movement stuck: ${JSON.stringify({p,end,region:info.region,cinematic:info.cinematic,obstacles,route:route.slice(0,6)})}`);
  }
  throw new Error(`Walking timeout toward ${JSON.stringify(end)}`);
 }

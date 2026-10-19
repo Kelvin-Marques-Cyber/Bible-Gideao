@@ -2,11 +2,13 @@
 
 **A Espada e a Tocha** é uma demonstração de RPG de exploração para navegador, inspirada em Juízes 6–8 e concebida para smartphones na horizontal. Gideão caminha por cenários tridimensionais com personagens em sprites; a campanha alterna exploração, conversas, preparação do grupo, furtividade, combates por turnos e cenas na própria engine.
 
-São quatro regiões compactas, com uma campanha de 14 objetivos. O percurso completo e a retomada offline passaram nos testes de navegador; os 40 testes unitários também passaram. O projeto busca uma sessão curta e completa; o tempo de conclusão e a meta de 30 FPS em celulares modestos ainda precisam de medição em aparelhos físicos. O [registro de validação](docs/VALIDACAO.md) distingue verificações executadas de pendências.
+São quatro regiões compactas, com uma campanha de 14 objetivos. A versão 0.2.0 reconstrói Ofra, aproxima a câmera e acrescenta fraquezas, Quebra e Ímpeto ao combate. A campanha e a retomada offline possuem testes de navegador; o registro abaixo identifica os resultados de cada versão. O projeto busca uma sessão curta e completa; o tempo de conclusão e a meta de 30 FPS em celulares modestos ainda precisam de medição em aparelhos físicos. O [registro de validação](docs/VALIDACAO.md) distingue verificações executadas de pendências.
 
 [**Jogar a demo e instalar a PWA**](https://kelvin-marques-cyber.github.io/Bible-Gideao/) · [Commits na main](https://github.com/Kelvin-Marques-Cyber/Bible-Gideao/commits/main/)
 
-![Ofra em uma sessão mobile offline](docs/screenshots/mobile-offline.png)
+![Ofra reconstruída na versão 0.2.0](docs/screenshots/visual-review/after-plaza-1440x900.png)
+
+Veja a [auditoria e comparação visual](docs/AUDITORIA-HD2D.md), os [materiais originais](docs/MATERIAIS-HD2D.md), as [regras de combate](docs/COMBATE.md) e os [limites da renderização](docs/RENDERIZACAO.md).
 
 ## Executar
 
@@ -46,7 +48,9 @@ Siga o objetivo à esquerda e o marcador dourado do minimapa. Aproxime-se das pe
 | Pausar/opções | Esc ou menu | Ícone do menu |
 | Combate | Selecionar alvo e ação com o ponteiro | Tocar no alvo e na técnica |
 
-Em combate, velocidade determina a ordem dos turnos. Ataques precisos, observação, defesa, cobertura e comando alteram a situação tática. Defender reduz dano e recupera vigor; provisões recuperam vida. Equipamentos modificam atributos de verdade. A derrota permite reorganizar o grupo e tentar novamente, com perda de prata. Purá se junta à jornada no reconhecimento noturno.
+Em combate, a ordem atual e a próxima rodada ficam visíveis. Escolha uma arma disponível, descubra fraquezas e retire os escudos: ao chegar a zero, o inimigo entra em **Quebra**, perde ações até o fim da rodada seguinte e recebe o dobro de dano. Acumule até cinco pontos de **Ímpeto** e gaste até três para repetir ataques ou reforçar técnicas. Quem gastou ímpeto não o recupera na rodada seguinte.
+
+Escolha ação, arma, alvo e reforço, confira a prévia e toque em **Confirmar ação**. Cada golpe aparece separadamente na arena; os comandos aguardam a conclusão da fila. Defesa recupera vigor e dá prioridade na rodada seguinte. Observação, cobertura e comando oferecem alternativas táticas; suprimentos usam itens reais. A derrota permite reorganizar o grupo e tentar novamente, com perda de prata. Purá se junta à jornada no reconhecimento noturno. Consulte as regras, os arquétipos e as referências em [docs/COMBATE.md](docs/COMBATE.md).
 
 As técnicas representam ações humanas. Não há mana, feitiços ou pontos de poder divino. Os sinais da lã, a escolha dos trezentos e o sonho são acontecimentos narrativos; o avanço não depende de charadas ou combinações.
 
@@ -82,7 +86,7 @@ Para jogar offline, abra o build por HTTPS e aguarde a instalação do Service W
 
 No Android, use a opção de instalação oferecida pelo navegador ou pelo menu quando disponível. No iPhone, use **Compartilhar → Adicionar à Tela de Início**. A disponibilidade e a aparência dessas opções dependem do navegador. A instalação real e a retomada offline em Safari/iOS permanecem pendentes de validação física.
 
-O comando de build gera o cache completo e calcula uma identificação a partir do conteúdo dos arquivos em `scripts/build-offline.mjs`. Uma nova versão remove os caches anteriores ao ser ativada; não é necessário editar a identificação manualmente.
+O comando de build gera o cache completo e calcula uma identificação a partir do conteúdo dos arquivos em `scripts/build-offline.mjs`. Ao ativar uma versão, o Service Worker conserva também o cache imediatamente anterior para páginas que ainda estão abertas e remove os mais antigos. Não é necessário editar a identificação manualmente.
 
 ## Testes
 
@@ -92,7 +96,7 @@ bun run typecheck
 bun run build
 ```
 
-Os testes de unidade cobrem dano, ordem dos turnos, inimigos, técnicas, vigor, recompensas, experiência, progressão, missões, inventário, equipamento, compra/venda e persistência. O IndexedDB é simulado com `fake-indexeddb`; isso verifica a lógica, sem substituir um teste de armazenamento no navegador.
+Os testes de unidade cobrem dano, escudos, Quebra, Ímpeto, migração de partidas, ordem dos turnos, inimigos, técnicas, vigor, recompensas, experiência, progressão, missões, inventário, equipamento, compra/venda, persistência, colisões, animação e renderização. O IndexedDB é simulado com `fake-indexeddb`; isso verifica a lógica, sem substituir um teste de armazenamento no navegador.
 
 Para os testes de navegador:
 
@@ -101,7 +105,7 @@ bunx playwright install chromium
 bun run test:e2e
 ```
 
-Em Linux de integração contínua, a instalação pode precisar de `bunx playwright install --with-deps chromium`. O workflow de validação executa unidade, build e E2E e preserva os resultados do navegador como artefato. Veja [docs/VALIDACAO.md](docs/VALIDACAO.md) para a lista de cenários efetivamente executados e as limitações. Os dois cenários passaram localmente: campanha completa (5,1 min de navegação automatizada) e toque/offline (1,3 min). Esse tempo automatizado não estima o tempo humano de leitura e exploração. Ative o rastreio opcional com `PLAYWRIGHT_TRACE=1 bun run test:e2e`.
+Em Linux de integração contínua, a instalação pode precisar de `bunx playwright install --with-deps chromium`. O workflow de validação executa unidade, build e E2E e preserva os resultados do navegador como artefato. Veja [docs/VALIDACAO.md](docs/VALIDACAO.md) para a lista de cenários efetivamente executados e as limitações. São sete cenários: campanha completa; toque e offline; descoberta de fraquezas e retomada; três impactos e Quebra; controles táticos por toque; retorno à exploração; câmera, HUD e recuperação de contexto gráfico. O tempo automatizado não estima o tempo humano de leitura e exploração. Ative o rastreio opcional com `PLAYWRIGHT_TRACE=1 bun run test:e2e`.
 
 ## Publicar
 
@@ -122,7 +126,7 @@ bun run deploy:pages
 
 Pré-requisitos: Bun, Git e autenticação GitHub com permissão de push (Git Credential Manager, GitHub CLI ou chave SSH). Se já tiver o repositório no computador, use `git pull --ff-only origin main` antes de executar. O script cria ou atualiza `gh-pages` automaticamente por meio de um worktree temporário, **sem sobrescrever a `main`**. Inclui `.nojekyll`, ícones, manifesto, `sw.js` e recursos compilados. A cada nova versão, execute novamente `bun run deploy:pages`.
 
-**Uma única configuração necessária no GitHub**: abra [Settings → Pages](https://github.com/Kelvin-Marques-Cyber/Bible-Gideao/settings/pages), escolha **Build and deployment → Source: Deploy from a branch**, **Branch: gh-pages**, **Folder: /(root)**, e salve. Se a branch ainda não aparecer, execute o comando local acima para criá-la primeiro. O endereço publicado é [https://kelvin-marques-cyber.github.io/Bible-Gideao/](https://kelvin-marques-cyber.github.io/Bible-Gideao/).
+A origem de publicação já está configurada em **gh-pages / (root)**, por branch, com HTTPS. O endereço publicado é [https://kelvin-marques-cyber.github.io/Bible-Gideao/](https://kelvin-marques-cyber.github.io/Bible-Gideao/).
 
 O GitHub ainda pode exibir um job interno chamado "pages build and deployment", mesmo com o método por branch. Isso é processamento próprio do GitHub Pages, **não exige executar nossos workflows personalizados**. A disponibilidade final depende das permissões/limitações ativas na conta; não declarar publicado até validar o URL real.
 
@@ -137,7 +141,11 @@ Execute `bun run build`, envie `dist/` e configure HTTPS. Não publique `node_mo
 ```text
 src/
   engine/
-    World.ts       cena, câmera, terreno, entidades, NPCs, rondas e cinematográficas
+    World.ts       orquestra regiões, entidades, rondas e cinematográficas
+    environment/   arquitetura, terreno, oliveiras, materiais e tendas
+    rendering/     câmera, luz, presets, pós-processamento e recuperação
+    characters/    seleção de poses, passos, recortes e descarte
+    battle/        arena, formação, impactos e apresentação dos eventos
     art.ts         texturas e quadros procedurais
     movement.ts    deslocamento e colisões
     audio.ts       trilha e efeitos sintetizados
@@ -150,10 +158,13 @@ src/
     save.ts        IndexedDB, espelho, validação e recuperação
   content/
     campaign.ts    atos, objetivos, falas, referências e adaptações
-    sprites.ts     metadados do atlas original de Gideão
-    peopleSprites.ts recortes dos personagens de apoio animados
+    heroAnimationAtlas.ts poses e caminhada do herói
+    peopleSpritesV2.ts    quatro folhas direcionais de habitantes
+    materialsV2.ts        recortes dos nove materiais originais
   ui/
-    App.tsx        menus, HUD, controles e ligação com os sistemas
+    App.tsx        menus, controles e ligação com os sistemas
+    BattleScreen.tsx comandos, alvos e prévias táticas
+    ObjectivePanel.tsx objetivo compacto e recolhível
     styles.css     apresentação e adaptação às telas
 public/
   assets/          retrato, atlas de animação, textura de pedra e procedência
@@ -163,7 +174,7 @@ tests/             testes de sistemas, persistência e navegador
 docs/              referências bíblicas e registro de validação
 ```
 
-React controla a interface e o estado da jornada; Three.js controla a simulação visual. A lógica dos sistemas fica separada da apresentação. Câmera, terreno, NPCs, IA de patrulha e cenas ainda se concentram em `World.ts`; a organização é adequada à demonstração, e a divisão em módulos menores é uma evolução arquitetural prevista. O conteúdo está isolado para permitir outras campanhas, mas ainda não há editor nem carregador genérico de campanhas externas.
+React controla a interface e o estado da jornada; Three.js controla a simulação visual. A lógica dos sistemas fica separada da apresentação. Câmera, luz, pós-processamento, ambiente, animação do herói e arena têm módulos próprios. `World.ts` integra esses módulos e ainda coordena os habitantes, a IA de patrulha e as cenas narrativas. O conteúdo está isolado para permitir outras campanhas, mas ainda não há editor nem carregador genérico de campanhas externas.
 
 ## Privacidade, recursos e limites
 

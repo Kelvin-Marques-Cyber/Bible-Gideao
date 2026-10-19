@@ -1,0 +1,204 @@
+{
+  "phase": "after",
+  "url": "http://127.0.0.1:5176/",
+  "viewport": {
+    "width": 844,
+    "height": 390
+  },
+  "source": "9fda973-plus-environment-integration",
+  "fixture": {
+    "region": "ofra",
+    "stage": 0,
+    "position": {
+      "x": 0,
+      "z": 6
+    },
+    "elapsedSeconds": 150
+  },
+  "renderer": {
+    "region": "ofra",
+    "position": {
+      "x": 0,
+      "z": 6
+    },
+    "fps": 2,
+    "nearby": [
+      "lagar"
+    ],
+    "obstacles": [
+      {
+        "x": -8.05,
+        "z": -3,
+        "width": 0.25,
+        "depth": 3.5
+      },
+      {
+        "x": -3.7500000000000004,
+        "z": -3,
+        "width": 0.25,
+        "depth": 3.5
+      },
+      {
+        "x": -5.9,
+        "z": -4.75,
+        "width": 4.3,
+        "depth": 0.25
+      },
+      {
+        "x": -7.200000000000001,
+        "z": -1.25,
+        "width": 1.7000000000000002,
+        "depth": 0.25
+      },
+      {
+        "x": -4.4,
+        "z": -1.25,
+        "width": 1.2999999999999998,
+        "depth": 0.25
+      },
+      {
+        "x": 5.7,
+        "z": -3.7,
+        "width": 4.64,
+        "depth": 3.74
+      },
+      {
+        "x": -13,
+        "z": 6,
+        "width": 3.64,
+        "depth": 3.14
+      },
+      {
+        "x": 11,
+        "z": 7.6,
+        "width": 3.64,
+        "depth": 3.54
+      },
+      {
+        "x": -8,
+        "z": -8.5,
+        "width": 4.84,
+        "depth": 3.3400000000000003
+      },
+      {
+        "x": 9,
+        "z": -13.5,
+        "width": 4.14,
+        "depth": 3.14
+      },
+      {
+        "x": 6,
+        "z": 1.4,
+        "width": 2.7,
+        "depth": 1
+      },
+      {
+        "x": -13,
+        "z": -2,
+        "width": 0.54,
+        "depth": 0.54
+      },
+      {
+        "x": -11,
+        "z": 11,
+        "width": 0.405,
+        "depth": 0.405
+      },
+      {
+        "x": 11,
+        "z": 2,
+        "width": 0.49500000000000005,
+        "depth": 0.49500000000000005
+      },
+      {
+        "x": 5,
+        "z": -10,
+        "width": 0.47250000000000003,
+        "depth": 0.47250000000000003
+      },
+      {
+        "x": -5,
+        "z": -13,
+        "width": 0.405,
+        "depth": 0.405
+      },
+      {
+        "x": 15,
+        "z": 11,
+        "width": 0.54,
+        "depth": 0.54
+      },
+      {
+        "x": -15,
+        "z": 8,
+        "width": 0.54,
+        "depth": 0.54
+      },
+      {
+        "x": 14,
+        "z": -11,
+        "width": 0.45,
+        "depth": 0.45
+      }
+    ],
+    "quality": "low",
+    "battle": false,
+    "battleStage": null,
+    "narrativeVictory": false,
+    "drawCalls": 199,
+    "triangles": 105271,
+    "software": true,
+    "pixelRatio": 0.65,
+    "depthOfField": false,
+    "rendering": {
+      "quality": "low",
+      "pixelRatio": 0.65,
+      "depthOfField": "economic-focal-band",
+      "postprocessing": true,
+      "preparing": false,
+      "preparationMs": 5250,
+      "hdr": true,
+      "bloom": "economic-hdr",
+      "focusDepth": 30.93220445651346,
+      "profile": "ofra",
+      "width": 844,
+      "height": 390
+    },
+    "camera": {
+      "context": "exploration",
+      "halfHeight": 6.35,
+      "visibleWidth": 27.52214234221078,
+      "visibleHeight": 12.71757762258555,
+      "heroPixels": 56.73250216445821,
+      "zoom": 0.9986178482170744,
+      "focusDepth": 30.93220445651346
+    },
+    "cameraPosition": [
+      13.5,
+      18,
+      28
+    ],
+    "cameraTarget": [
+      0,
+      0,
+      6
+    ],
+    "contextLost": false,
+    "environmentArt": {
+      "materials": true,
+      "olive": true
+    },
+    "peopleV2": [
+      "pura",
+      "woman",
+      "elder",
+      "guard"
+    ],
+    "heroAnimation": {
+      "ready": true,
+      "context": "idle"
+    },
+    "cinematic": null
+  },
+  "errors": []
+}

@@ -18,7 +18,9 @@ O pacote v2 acrescenta nove superfícies originais e folhagem recortada à arqui
 | `terracotta` | 3, 2 | Cerâmica sem esmalte em argila avermelhada |
 | `water` | 3, 3 | Ondulações suaves em verde e azul contidos |
 
-O carregador `src/engine/environment/materials.ts` recorta cada superfície uma vez e compartilha as nove texturas resultantes. A repetição é espelhada em cada recorte, em vez de repetir a folha inteira. A cor usa espaço sRGB; ampliação preserva bordas por amostragem próxima e a redução usa mipmaps. Os materiais ficam sujeitos às luzes da cena.
+O carregador `src/engine/environment/materials.ts` recorta cada superfície uma vez e compartilha as nove texturas-base resultantes. A repetição é espelhada em cada recorte, em vez de repetir a folha inteira. A cor usa espaço sRGB; ampliação preserva bordas por amostragem próxima e a redução usa mipmaps. Os materiais ficam sujeitos às luzes da cena.
+
+Essas nove bases não representam o total de texturas do jogo nem uma contagem de alocações na GPU. A execução também cria derivados para o solo de contraste reduzido e as bordas dos caminhos, além de referências clonadas para ajustes de repetição. Folhagem, quadros de personagens, sombras de contato, efeitos e alvos de renderização são recursos adicionais. A memória total precisa ser medida no navegador e no dispositivo; o tamanho dos PNGs em disco não corresponde ao seu custo descomprimido.
 
 A escala UV deve acompanhar o objeto: blocos de pedra têm tamanho reconhecível, o veio segue vigas, e a trama de tecido permanece menor que as tábuas. Variação de volumes, orientação e desgaste ajuda a controlar padrões visíveis. Repetição espelhada reduz emendas, mas não garante continuidade perfeita. Água é um recurso disponível no atlas; sua presença no arquivo não certifica uma simulação física ou uso em todos os poços.
 

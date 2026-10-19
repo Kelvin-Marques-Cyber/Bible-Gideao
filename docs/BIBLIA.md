@@ -46,6 +46,16 @@ Prompt usado (ferramenta integrada, fundo transparente):
 
 A arte é uma reconstrução; a Bíblia não descreve a aparência física de Gideão nesses detalhes. O prompt acima resume a especificação de produção; a geração retornada foi inspecionada e preservada com seu canal de transparência.
 
-`public/assets/gideao-walk.png` acrescenta dezesseis quadros originais em quatro direções, gerados a partir da mesma aparência para animação dentro do mundo 3D. O arquivo `src/content/sprites.ts` fornece os recortes de cada quadro, pois o espaçamento devolvido pela ferramenta não é matematicamente uniforme.
+Os recursos v2 ampliam a animação e os acabamentos, mantendo a mesma interpretação artística dos personagens:
 
-`public/assets/people-walk.png` contém outros dezesseis quadros para Purá, uma moradora ficcional, Joás e um guarda midianita sem identidade bíblica inventada. As imagens não são retratos historicamente comprovados. Os recortes ficam em `src/content/peopleSprites.ts`. `public/assets/limestone-wall.png` é uma textura original aplicada a superfícies tridimensionais; não substitui o cenário por uma imagem plana. `public/assets/PROVENANCE.md` registra todos os prompts integrais e a origem das imagens.
+| Recurso | Conteúdo | Registro de produção |
+| --- | --- | --- |
+| `gideao-walk-v2.png` | 32 quadros de caminhada, oito por direção | [Herói v2](../public/assets/PROMPTS-HERO-V2.md) |
+| `gideao-actions-v2.png` | 36 quadros distribuídos entre nove ações | [Herói v2](../public/assets/PROMPTS-HERO-V2.md) |
+| `people-pura-walk-v2.png`, `people-woman-walk-v2.png`, `people-elder-walk-v2.png`, `people-guard-walk-v2.png` | Quatro folhas de 16 quadros: Purá, moradora, ancião e guarda; quatro direções por personagem | [NPCs v2](PROMPTS-NPCS-V2.md) |
+| `enemies-battle.png` | 16 poses de quatro arquétipos humanos ficcionais | [Procedência da arte](../public/assets/PROVENANCE.md) |
+| `ofra-materials-v2.png`, `olive-sprig-v2.png` | Nove superfícies e folhagem transparente aplicadas a objetos tridimensionais | [Materiais v2](../public/assets/PROMPTS-MATERIALS-V2.md) |
+
+Os manifestos em `src/content/heroAnimationAtlas.ts`, `peopleSpritesV2.ts`, `enemySprites.ts` e `materialsV2.ts` registram organização, escala e recortes. A execução normaliza os quadros e ancora os pés para apresentação no mundo e no combate. As folhas foram geradas em resoluções maiores; essa normalização não certifica desenho manual em uma grade nativa de pixels ou paleta estritamente indexada.
+
+Os recursos anteriores `gideao-walk.png`, `people-walk.png` e `limestone-wall.png` permanecem preservados, com seus manifestos e origem documentados. As imagens de pessoas não são retratos historicamente comprovados, e as texturas não substituem o cenário por um fundo estático. O [índice de procedência](../public/assets/PROVENANCE.md) reúne os registros e os prompts integrais de cada geração.

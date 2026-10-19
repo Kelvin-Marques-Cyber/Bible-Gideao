@@ -26,4 +26,37 @@ A leitura visual destaca áreas de descanso entre grupos de detalhes, materiais 
 
 O baseline foi preservado em uma cópia separada do código anterior. As comparações usam partidas válidas, sem diálogo nem menu, nas posições `(0, 6)` e `(-5, 1)`, com viewports de 1440 × 900 e 844 × 390. A posição do personagem, região, estágio e condições de iluminação são mantidos; a mudança de câmera faz parte da intervenção e será registrada. Metadados de renderização acompanham as capturas.
 
-Este documento registra critérios e evidências. A presença de sombras, bloom, texturas ou testes aprovados não certifica qualidade artística. A conclusão depende da inspeção das capturas finais e dos fluxos jogáveis preservados.
+Este documento registra critérios e evidências. A presença de sombras, bloom, texturas ou testes aprovados não certifica qualidade artística.
+
+## Resultado inspecionado
+
+As oito imagens abaixo foram abertas e inspecionadas. A referência usa `8477b22`; a reconstrução de ambiente está em `27414dc`, após os materiais `3d08cf8` e os NPCs `9fda973`. As capturas finais foram realizadas durante a integração com `cd60e57`, cujas alterações adicionais são de combate. O campo `source` dos JSONs finais identifica essa sessão como `9fda973-plus-environment-integration`. A renderização usa Chromium/SwiftShader, preset leve e densidade do dispositivo 1. O processo aguardou os materiais, as quatro folhas de habitantes e a estabilização da câmera.
+
+| Posição e tela | Antes | Depois |
+| --- | --- | --- |
+| Praça `(0, 6)`, 1440 × 900 | [Imagem](screenshots/visual-review/before-plaza-1440x900.png) | [Imagem](screenshots/visual-review/after-plaza-1440x900.png) |
+| Joás `(-5, 1)`, 1440 × 900 | [Imagem](screenshots/visual-review/before-joas-1440x900.png) | [Imagem](screenshots/visual-review/after-joas-1440x900.png) |
+| Praça `(0, 6)`, 844 × 390 | [Imagem](screenshots/visual-review/before-plaza-844x390.png) | [Imagem](screenshots/visual-review/after-plaza-844x390.png) |
+| Joás `(-5, 1)`, 844 × 390 | [Imagem](screenshots/visual-review/before-joas-844x390.png) | [Imagem](screenshots/visual-review/after-joas-844x390.png) |
+
+![Praça antes](screenshots/visual-review/before-plaza-1440x900.png)
+
+![Praça reconstruída](screenshots/visual-review/after-plaza-1440x900.png)
+
+O enquadramento mais próximo torna os rostos, os acessos e os objetos domésticos legíveis. O anel de pedras arredondadas deixa de ocupar a faixa inferior. Casas apresentam espessura de peitoris, anexos, vigas salientes, reboco irregular e cantaria exposta. O poço, a praça de lajes e os caminhos agora formam espaços distintos. Oliveiras mostram troncos bifurcados e folhas recortadas; a folha original substitui as antigas copas esféricas.
+
+Na inspeção intermediária, o chão tinha pedras grandes e contraste excessivo. O ajuste final reduziu contraste/saturação da terra e diminuiu a escala dos seixos; os canteiros mantêm o solo mais escuro. As quatro figuras de apoio agora compartilham proporções e contorno com Gideão, com costas e perfis próprios. A missão permanece legível no painel recolhido, enquanto o mapa e os recursos ocupam menos área.
+
+Os JSONs finais registram DPR 0,65, contra 0,4 no baseline. A nova projeção calcula aproximadamente 122 pixels CSS para a altura do herói no desktop e 57 no celular. São valores da projeção; não medem o contorno opaco de cada pose. Os testes de contexto, toque e campanha estão registrados separadamente em [VALIDACAO.md](VALIDACAO.md).
+
+O custo visual aumentou: na praça desktop, 98 chamadas e 63.282 triângulos antes, 208 chamadas e 99.763 triângulos depois, somando os passes. A comparação não comprova otimização nem FPS em hardware móvel. Ambas as capturas desse par usaram o caminho leve, permitindo comparar essa contagem; capturas antigas que contavam apenas o último passe não servem a essa comparação.
+
+## Produção que permanece necessária
+
+Ofra é a região com composição de terreno mais trabalhada. Casas, oliveiras, cerâmica, tecidos e tendas compartilham os novos módulos nas outras regiões e nas arenas, mas esses lugares mantêm sua composição de terreno anterior e precisam de revisão artística própria.
+
+A direção se aproxima da leitura de diorama e do combate da referência; ainda não equivale ao acabamento comercial de Octopath Traveler. Os sprites gerados têm recortes e pés normalizados, mas pedem revisão manual de pixels, paleta e continuidade de silhueta. Gideão possui 32 quadros de caminhada e 36 de ações; os habitantes possuem quatro quadros por direção, com respiração e deslocamentos complementares por transformação. Conversa, emoção e ataques próprios para cada NPC ainda precisam de produção de arte.
+
+Persistem pontos de acabamento: repetição de materiais no solo, campos com contornos bastante regulares, variação limitada de habitantes, transições agrícolas e riqueza dos planos distantes. Há sombras de contato, brilho de luzes e foco protegido, com aproximações econômicas no celular. Não há SSAO/GTAO nem luz volumétrica. FPS, memória, aquecimento, bateria e instalação em Android/iOS físicos continuam sem medição.
+
+As capturas são reproduzíveis com `scripts/capture-visuals.ts`, usando `VISUAL_ROOT`, `VISUAL_URL` e `VISUAL_SOURCE` para apontar a cópia desejada. Os JSONs ao lado de cada PNG guardam posição, câmera, qualidade, renderizador e erros.

@@ -11,6 +11,7 @@ await mkdir(directory,{recursive:true});
 const browser=await chromium.launch({executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH,args:['--no-sandbox','--enable-unsafe-swiftshader','--use-angle=swiftshader']});
 try{
  for(const viewport of [{width:1440,height:900},{width:844,height:390}])for(const [name,position]of [['plaza',{x:0,z:6}],['joas',{x:-5,z:1}]] as const){
+  if(process.env.VISUAL_FILTER&&!`${name}-${viewport.width}`.includes(process.env.VISUAL_FILTER))continue;
   const context=await browser.newContext({viewport,deviceScaleFactor:1,hasTouch:viewport.width<900,isMobile:viewport.width<900});
   const game=createGame();game.position={...position};game.flags.intro=true;game.elapsedSeconds=150;
   const snapshot=serializeSave(game),page=await context.newPage(),errors:string[]=[];page.on('pageerror',error=>errors.push(error.message));
@@ -25,6 +26,7 @@ try{
   await expect.poll(()=>page.evaluate(()=>(window as any).__GIDEAO__?.getWorld()?.fps??0),{timeout:90000}).toBeGreaterThan(0);
   await expect.poll(()=>page.evaluate(()=>(window as any).__GIDEAO__.getWorld()?.rendering?.preparing??false),{timeout:90000}).toBe(false);
   await expect.poll(()=>page.evaluate(()=>{const debug=(window as any).__GIDEAO__.getWorld();return debug.camera?debug.camera.context==='exploration'&&Math.abs(debug.camera.zoom-1)<.005:true;}),{timeout:30000}).toBe(true);
+  await expect.poll(()=>page.evaluate(()=>{const debug=(window as any).__GIDEAO__.getWorld();return (!debug.heroAnimation||debug.heroAnimation.ready)&&(!debug.peopleV2||debug.peopleV2.length===4)&&(!debug.environmentArt||debug.environmentArt.materials&&debug.environmentArt.olive);}),{timeout:90000}).toBe(true);
   const state=await page.evaluate(()=>(window as any).__GIDEAO__.getState()),debug=await page.evaluate(()=>(window as any).__GIDEAO__.getWorld());
   expect(state.region).toBe('ofra');expect(Math.hypot(debug.position.x-position.x,debug.position.z-position.z)).toBeLessThan(.01);
   const filename=`${directory}/${phase}-${name}-${viewport.width}x${viewport.height}`;

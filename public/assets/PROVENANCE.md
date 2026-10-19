@@ -1,5 +1,12 @@
 # Original art provenance
 
+## Production records
+
+- [Gideão animation v2](PROMPTS-HERO-V2.md): 32 directional walk frames and 36 action frames, with exact prompts and limits of the generated pixel style.
+- [Directional NPCs v2](../../docs/PROMPTS-NPCS-V2.md): four accepted character sheets, 64 frames total, inspected alpha bounds, explicit crops, hashes and exact prompts.
+- [Ofra materials and foliage v2](PROMPTS-MATERIALS-V2.md): nine material surfaces and a transparent olive sprig, with dimensions, crop rules and exact prompts.
+- The sections below preserve the earlier character, enemy and limestone production records. Original files remain available alongside v2 resources.
+
 ## Ofra materials and foliage v2
 
 The original `ofra-materials-v2.png` atlas and `olive-sprig-v2.png` foliage were produced with the built-in ImageGen tool on 2026-10-18. Their exact prompts, dimensions, transparency inspection, crop rules and production limits are preserved in [PROMPTS-MATERIALS-V2.md](PROMPTS-MATERIALS-V2.md). The nine-material atlas is 1254 × 1254 RGB; the foliage is 1774 × 887 RGBA. No commercial image or third-party texture was supplied. Runtime packaging does not certify manual pixel drawing or perfect seamless tiling.

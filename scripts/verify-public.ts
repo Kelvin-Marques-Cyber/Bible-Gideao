@@ -1,0 +1,58 @@
+import { chromium, expect } from '@playwright/test';
+import { mkdir, writeFile } from 'node:fs/promises';
+
+const url='https://kelvin-marques-cyber.github.io/Bible-Gideao/';
+const expected=process.env.EXPECTED_SOURCE;
+if(!expected)throw new Error('Informe EXPECTED_SOURCE com o commit compilado antes da verificação pública.');
+const response=await fetch(new URL(`version.json?verify=${Date.now()}`,url));
+if(!response.ok)throw new Error(`version.json público: ${response.status}`);
+const version=await response.json() as {sourceCommit:string;version:string};
+expect(version.sourceCommit).toBe(expected);
+const browser=await chromium.launch({executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH,args:['--no-sandbox','--enable-unsafe-swiftshader','--use-angle=swiftshader']});
+try{
+ const context=await browser.newContext({viewport:{width:844,height:390},deviceScaleFactor:1,hasTouch:true,isMobile:true});
+ const page=await context.newPage(),errors:string[]=[];
+ page.on('pageerror',error=>errors.push(error.message));
+ page.on('console',message=>{if(message.type()==='error')errors.push(message.text());});
+ const world=()=>page.evaluate(()=>(window as any).__GIDEAO__.getWorld());
+ const state=()=>page.evaluate(()=>(window as any).__GIDEAO__.getState());
+ await page.goto(url,{waitUntil:'domcontentloaded'});
+ await page.getByRole('button',{name:'Iniciar jornada',exact:true}).click();
+ for(let line=0;line<15&&await page.locator('.dialogue-box').count();line++)await page.locator('.dialogue-bottom button').click();
+ await expect.poll(async()=>(await world()).rendering.preparing,{timeout:90000}).toBe(false);
+ await expect.poll(async()=>(await world()).heroAnimation.ready,{timeout:90000}).toBe(true);
+ await expect.poll(async()=>(await world()).camera.context).toBe('exploration');
+ await expect.poll(async()=>(await world()).cinematic,{timeout:45000}).toBeNull();
+ await expect.poll(async()=>(await world()).peopleV2.length,{timeout:90000}).toBe(4);
+ const initial=(await world()).position,joystick=await page.getByLabel('Controle de movimento').boundingBox();
+ if(!joystick)throw new Error('Joystick não encontrado.');
+ const touch=await context.newCDPSession(page),x=joystick.x+joystick.width/2,y=joystick.y+joystick.height/2;
+ await touch.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x,y}]});
+ await touch.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:x+35,y}]});
+ await page.waitForTimeout(1600);
+ await touch.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});await touch.detach();
+ const position=(await world()).position;
+ expect(Math.hypot(position.x-initial.x,position.z-initial.z)).toBeGreaterThan(.5);
+ await page.getByRole('button',{name:'Menu',exact:true}).click();
+ await page.getByRole('button',{name:/Salvar jornada/}).click();
+ await expect(page.getByRole('status')).toContainText('salva');
+ await page.getByRole('button',{name:'Fechar menu'}).click();
+ await page.evaluate(()=>navigator.serviceWorker.ready);
+ await expect.poll(()=>page.evaluate(()=>navigator.serviceWorker.controller!==null),{timeout:90000}).toBe(true);
+ const cached=await page.evaluate(async()=>{
+  const names=await caches.keys();return Promise.all(names.map(async name=>({name,assets:(await(await caches.open(name)).keys()).map(request=>new URL(request.url).pathname)})));
+ });
+ await context.setOffline(true);await page.reload({waitUntil:'domcontentloaded'});
+ await page.getByRole('button',{name:'Retomar jornada',exact:true}).click();
+ await expect.poll(async()=>(await world()).heroAnimation.ready,{timeout:90000}).toBe(true);
+ await expect.poll(async()=>(await world()).rendering.preparing,{timeout:90000}).toBe(false);
+ await expect.poll(async()=>(await world()).peopleV2.length,{timeout:90000}).toBe(4);
+ const resumed=await state();expect(Math.hypot(resumed.position.x-position.x,resumed.position.z-position.z)).toBeLessThan(.05);
+ expect(errors).toEqual([]);
+ await mkdir('docs/screenshots',{recursive:true});await mkdir('work',{recursive:true});
+ await page.screenshot({path:'docs/screenshots/public-ofra-v2.png'});
+ const report={url,checkedAt:new Date().toISOString(),version,viewport:{width:844,height:390},input:'CDP touch',offlineReload:true,initial,position,resumed:resumed.position,cache:cached,renderer:await world(),errors};
+ await writeFile('work/public-verification.json',JSON.stringify(report,null,2)+'\n');
+ console.log(JSON.stringify({version,movement:Math.hypot(position.x-initial.x,position.z-initial.z),offlineReload:true,cached:cached.map(cache=>({name:cache.name,assets:cache.assets.length})),errors}));
+ await context.close();
+}finally{await browser.close();}

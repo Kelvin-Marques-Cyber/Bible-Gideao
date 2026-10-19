@@ -10,7 +10,7 @@ A calibração de exploração usa meia-altura de 6,35–7,15 unidades em paisag
 
 Conversas recebem zoom gradual de 1,2× e podem enquadrar o ponto médio entre Gideão e o interlocutor. Momentos importantes usam 1,12×. Uma pose explícita de cinemática conserva sua composição, sem acumular o zoom do diálogo. O palco de combate controla sua câmera separadamente.
 
-`ForegroundFader` pode tornar apenas copas autorais que cruzam a linha de visão translúcidas. Materiais são clonados para que uma copa não altere outras árvores que compartilham o mesmo material. Edificações e a cena inteira não são candidatos automáticos.
+A desobstrução integrada fica em `World.ts`: a lista `foliageOccluders` identifica as copas de folhas instanciadas. Uma aproximação pela direção da câmera e pela distância lateral ao personagem reduz gradualmente sua opacidade, ajustando também o corte alfa e a escrita de profundidade. Cada copa possui material próprio, enquanto a textura de folhas é compartilhada. Edificações e a cena inteira não são candidatos automáticos. O módulo separado `ForegroundFader` não participa dessa integração atual.
 
 ## Luz, materiais e profundidade
 
