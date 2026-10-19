@@ -1,0 +1,9 @@
+{
+  "image": "olive-sprig-v2.png",
+  "width": 1774,
+  "height": 887,
+  "aspect": 2,
+  "alphaTest": 0.38,
+  "transparent": true,
+  "usage": "Full image on instanced foliage cards; do not tile the whole image as an opaque surface."
+}

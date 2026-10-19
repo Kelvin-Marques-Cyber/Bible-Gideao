@@ -1,5 +1,9 @@
 # Original art provenance
 
+## Ofra materials and foliage v2
+
+The original `ofra-materials-v2.png` atlas and `olive-sprig-v2.png` foliage were produced with the built-in ImageGen tool on 2026-10-18. Their exact prompts, dimensions, transparency inspection, crop rules and production limits are preserved in [PROMPTS-MATERIALS-V2.md](PROMPTS-MATERIALS-V2.md). The nine-material atlas is 1254 × 1254 RGB; the foliage is 1774 × 887 RGBA. No commercial image or third-party texture was supplied. Runtime packaging does not certify manual pixel drawing or perfect seamless tiling.
+
 ## enemies-battle.png
 
 - Built-in ImageGen generation with `people-walk.png` as original style reference and `transparent_background: true`.
