@@ -740,9 +740,12 @@ export class World {
       this.updateActors(this.paused&&!this.cinematic?0:dt);this.updateCamera(actualDt);this.updateEffects(dt);
       if(this.frame%10===0){this.notifyNearby();if(!this.paused)this.callbacks.onPosition?.(this.getPosition());}
     }
-    this.pipeline.render(actualDt);
     this.sampleFrames++;this.sampleTime+=actualDt;
-    if(this.sampleTime>2){this.fps=Math.round(this.sampleFrames/this.sampleTime);this.callbacks.onStats?.({fps:this.fps,quality:this.quality,drawCalls:this.renderer.info.render.calls,triangles:this.renderer.info.render.triangles});this.pipeline.adapt(this.fps);this.sampleFrames=0;this.sampleTime=0;}
+    const reportStats=this.sampleTime>2;
+    // Changing canvas dimensions clears its drawing buffer, so adapt before drawing this frame.
+    if(reportStats){this.fps=Math.round(this.sampleFrames/this.sampleTime);this.pipeline.adapt(this.fps);this.sampleFrames=0;this.sampleTime=0;}
+    this.pipeline.render(actualDt);
+    if(reportStats)this.callbacks.onStats?.({fps:this.fps,quality:this.quality,drawCalls:this.renderer.info.render.calls,triangles:this.renderer.info.render.triangles});
     this.raf=requestAnimationFrame(this.tick);
   };
 
