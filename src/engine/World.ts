@@ -609,7 +609,7 @@ export class World {
     if(kind==='army'&&this.region==='harode'&&this.player.position.distanceTo(new THREE.Vector3(7,0,-4))<3)kind='water';
     this.cinematic={kind,progress:0,duration};
     if(kind.includes('altar'))this.applyDestroyedAltar(false);
-    if(kind==='army'||kind==='water'){const soldiers=this.actors.filter(a=>a.id.startsWith('israelita-'));const departing=kind==='water'?soldiers.slice(3):soldiers.slice(6);for(const soldier of departing){soldier.route=[soldier.group.position.clone(),new THREE.Vector3(-3,0,17)];soldier.speed=1.25;soldier.group.userData.departing=true;}}
+    if(kind==='army'||kind==='water'){const soldiers=this.actors.filter(a=>a.id.startsWith('israelita-'));const departing=kind==='water'?soldiers.slice(3):soldiers.slice(6);for(const soldier of departing){soldier.route=[soldier.group.position.clone(),new THREE.Vector3(-3,0,17)];soldier.waypoint=0;soldier.speed=1.25;soldier.group.userData.departing=true;}}
     if(['signal','sinal','victory','torches','tochas','finale','trumpets'].some(s=>kind.includes(s)))this.applyNarrativeVictory(false);
   }
 

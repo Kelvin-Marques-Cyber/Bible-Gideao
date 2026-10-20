@@ -4,6 +4,7 @@ import { buildHouse } from '../src/engine/environment/architecture';
 import { buildComposedPath,ofraGroundHeight } from '../src/engine/environment/terrain';
 import type { EnvironmentContext } from '../src/engine/environment/context';
 import { moveWithCollisions } from '../src/engine/movement';
+import { World } from '../src/engine/World';
 
 function context():EnvironmentContext {
   const material=new THREE.MeshStandardMaterial();
@@ -30,5 +31,25 @@ describe('authored Ofra environment',()=>{
       expect(Math.abs(ofraGroundHeight(x+.3,z)-ofraGroundHeight(x,z))).toBeLessThan(.09);
       expect(Math.abs(ofraGroundHeight(x,z+.3)-ofraGroundHeight(x,z))).toBeLessThan(.09);
     }
+  });
+});
+
+
+describe('Harode contingent departure',()=>{
+  it.each(['army','water'])('replaces a three-point patrol safely during the %s scene',kind=>{
+    const soldiers=Array.from({length:10},(_,index)=>({
+      id:`israelita-${index}`,group:new THREE.Group(),route:[new THREE.Vector3(0,0,0),new THREE.Vector3(0,0,1),new THREE.Vector3(0,0,2)],waypoint:2,speed:.7,
+    }));
+    const simulation=Object.assign(Object.create(World.prototype),{
+      battleActive:false,region:'harode',player:new THREE.Group(),actors:soldiers,
+      animateActor:()=>{},groundHeight:()=>0,callbacks:{},encounterCooldown:0,
+    });
+    simulation.player.position.set(0,0,6);
+    simulation.playCinematic(kind,7);
+    const departing=soldiers.slice(kind==='water'?3:6);
+    expect(departing.every(soldier=>soldier.waypoint===0&&soldier.route.length===2)).toBe(true);
+    expect(()=>simulation.updateActors(.25)).not.toThrow();
+    expect(()=>simulation.updateActors(.25)).not.toThrow();
+    expect(departing.every(soldier=>soldier.group.position.z>0&&Number.isFinite(soldier.group.position.x))).toBe(true);
   });
 });
