@@ -129,6 +129,9 @@ test('observation discovers a weakness and real save recovery preserves combat d
   expect(errors).toEqual([]);
 });
 
+test.describe('late material loading',()=>{
+// Route interception needs to see the image request instead of a worker cache response.
+test.use({serviceWorkers:'block'});
 test('boosted attack presents three distinct hits before Break and keeps the full result after reload', async ({ page }) => {
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
   let releaseMaterials!: () => void;
@@ -173,6 +176,8 @@ test('boosted attack presents three distinct hits before Break and keeps the ful
   expect(resumed.units.find(u => u.id === 'pura')!.bp).toBe(0);
   await expect(page.getByTestId('shield-captain-0')).toHaveAttribute('aria-label', '0 escudos de 5');
   expect(errors).toEqual([]);
+});
+
 });
 
 test('touch controls choose a weapon and boost on a horizontal phone without overflowing the viewport', async ({ browser }) => {

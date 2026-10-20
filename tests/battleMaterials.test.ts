@@ -2,6 +2,7 @@ import {afterEach,describe,expect,it,vi} from 'vitest';
 import * as THREE from 'three';
 import {BattleStage} from '../src/engine/battle/BattleStage';
 import type {AuthoredMaterialId} from '../src/content/materialsV2';
+import type {BattleEvent} from '../src/game/types';
 
 afterEach(()=>vi.unstubAllGlobals());
 function canvasEnvironment(){
@@ -25,10 +26,24 @@ describe('battle environment loading during a resumed encounter',()=>{
     const loaded=stage.getDebugInfo();expect(loaded.arenaInstance).toBe(before.arenaInstance);expect(loaded.currentEvent).toBe(pending.currentEvent);expect(loaded.eventsPlayed).toBe(0);expect(impacts).toEqual([]);
     expect(loaded.authoredMaterialsReady).toBe(true);expect(loaded.authoredMaterialCount).toBeGreaterThan(0);expect(loaded.environmentMaterials.mappedBySurface.linen).toBeGreaterThan(0);expect(loaded.environmentMaterials.authoredGround).toBe(true);expect(loaded.environmentMaterials.pendingBindings).toBe(0);
     puraFrames=frames(true);stage.update(.01);const pura=stage.getDebugInfo().units.find(unit=>unit.id==='pura');expect(pura?.directionalSprite).toBe(true);expect(pura?.mirrored).toBe(false);
-    stage.update(1.2);await playing;expect(impacts).toEqual([1]);expect(stage.getDebugInfo().eventsPlayed).toBe(1);expect(stage.getDebugInfo().units.find(unit=>unit.id==='enemy-0')?.hp).toBe(55);
+    stage.update(1.2);expect(stage.getDebugInfo().animating).toBe(true);stage.update(1/60);await playing;expect(impacts).toEqual([1]);expect(stage.getDebugInfo().eventsPlayed).toBe(1);expect(stage.getDebugInfo().units.find(unit=>unit.id==='enemy-0')?.hp).toBe(55);
     const derived=new Set<THREE.Texture>();stage.root.traverse(object=>{if(object instanceof THREE.Mesh&&!Array.isArray(object.material)&&'map'in object.material){const map=object.material.map as THREE.Texture|null;if(map?.name.startsWith('Authored battle'))derived.add(map);}});
     const disposals=[...derived].map(texture=>vi.spyOn(texture,'dispose'));stage.refreshEnvironmentTextures(textures);expect(stage.getDebugInfo().environmentMaterials.refreshes).toBe(1);disposals.forEach(dispose=>expect(dispose).not.toHaveBeenCalled());
     textures.surfaces.dirt=new THREE.DataTexture(new Uint8Array(16),2,2);stage.refreshEnvironmentTextures(textures);disposals.forEach(dispose=>expect(dispose).toHaveBeenCalledTimes(1));expect(stage.getDebugInfo().arenaInstance).toBe(before.arenaInstance);expect(stage.getDebugInfo().eventsPlayed).toBe(1);
     stage.dispose();expect(borrowedDisposal).not.toHaveBeenCalled();disposals.forEach(dispose=>expect(dispose).toHaveBeenCalledTimes(1));
+  });
+  it('presents every impact for one update when a slow frame exceeds the whole action duration',async()=>{
+    canvasEnvironment();const placeholder=new THREE.Texture(),spriteFrames=frames();
+    const stage=new BattleStage({scene:new THREE.Scene(),camera:new THREE.OrthographicCamera(-10,10,6,-6,.1,100),region:'ofra',software:true,quality:'low',textures:{stone:placeholder,adobe:placeholder,wood:placeholder,leaves:placeholder,rock:placeholder,sprig:placeholder,glow:placeholder,haze:placeholder},frames:()=>spriteFrames},{units:[{id:'gideon',name:'Gideão',side:'ally',hp:90,maxHp:90},{id:'enemy-0',name:'Saqueador',side:'enemy',hp:80,maxHp:80}]});
+    const kinds:BattleEvent['kind'][]=['hit','heal','guard','tactic','break','recover','boost','result'];
+    for(const [index,kind]of kinds.entries()){
+      const event:BattleEvent={id:index+1,actorId:'gideon',targetId:'enemy-0',kind,action:kind==='result'?'victory':kind==='recover'?'recover':kind==='guard'?'guard':'attack',amount:1},onEvent=vi.fn();let settled=false;
+      const playback=stage.animate([event],1,onEvent).then(()=>{settled=true;});await Promise.resolve();
+      stage.update(20);await Promise.resolve();
+      expect(onEvent).toHaveBeenCalledTimes(1);expect(onEvent).toHaveBeenCalledWith(event);expect(stage.getDebugInfo().currentEvent).toBe(event.id);expect(stage.getDebugInfo().animating).toBe(true);expect(settled).toBe(false);
+      stage.update(1/60);await playback;
+      expect(onEvent).toHaveBeenCalledTimes(1);expect(stage.getDebugInfo().animating).toBe(false);expect(settled).toBe(true);expect(stage.getDebugInfo().eventsPlayed).toBe(index+1);
+    }
+    stage.dispose();
   });
 });
